@@ -940,10 +940,19 @@ int runPresets( const Target& target )
 			if( pass == 1 )
 				plugin.SetFloatParameter( PT_FLOW, 0.0f );//the same sheet, undrawn on
 
-			//Ten seconds. Long enough that the slowest preset here -- Show the
-			//Gears, which is cranked slowly on purpose -- has been round the
-			//ring more than once and has something on the sheet to measure.
-			for( int frame = 0; frame < 600; ++frame )
+			//Chosen against the SLOWEST preset, not picked round. Show the
+			//Gears is cranked at a third of a turn a second on purpose, so it
+			//is the one that decides this number: at 400 frames it has been
+			//round the ring more than twice and measures 2.0% covered against
+			//a 0.2% floor, with a contrast of 0.073 against a floor of 0.02.
+			//Every other preset has more margin than that. 180 frames was the
+			//first attempt and it failed here, correctly.
+			//
+			//It is also the most expensive number in the harness -- eight
+			//presets, twice each -- so it is worth knowing what it buys rather
+			//than rounding it up for comfort. On a CI runner with no GPU this
+			//check alone was two fifths of the whole suite.
+			for( int frame = 0; frame < 400; ++frame )
 				renderFrame( plugin, target, frame );
 
 			( pass == 0 ? drawn : blank ) = readFloats( target );

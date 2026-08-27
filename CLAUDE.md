@@ -36,7 +36,7 @@ Disable with `-DBUILD_OFX=OFF`.
 - Presets survive every host behaviour: `./build/cgtest --hosts`
 - The same drawing at every raster: `./build/cgtest --scale`
 - A hostile machine leaves no NaN: `./build/cgtest --guard`
-- No dead controls: `python3 tools/sweep.py`
+- No dead controls: `python3 tools/sweep.py` (`--size WxH`, `--jobs N`)
 - Preset rows the right width and kind: `python3 tools/check_presets.py`
 
 ## Notes
@@ -66,6 +66,12 @@ Disable with `-DBUILD_OFX=OFF`.
   events. `seedHostValues()` must run before `applyPreset` can.
 - **The OFX build replays from frame zero**, because paper does not forget.
   Linear renders are cheap; backward scrubs are not.
+- **CI runs the invariants CONCURRENTLY**, as background jobs, not through
+  `--all`. Each check is its own process with its own GL context. Serially they
+  were five minutes on a runner with no GPU and 1.5 seconds on this Mac --
+  software rasterisation is the entire cost. `tools/verify.sh` compares its own
+  check list against ci.yml's, because a check added to one and not the other
+  just stops running.
 - **`Centre` is ±1.5, not ±2** — at ±2 both ends of Centre Y are off the sheet
   and the control reads dead.
 - `PlainDisplay` exists because `CFFGLPlugin::GetParameterDisplay` segfaults on

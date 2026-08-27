@@ -291,6 +291,25 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+head_ "The check list"
+# ---------------------------------------------------------------------------
+# The list of checks lives in TWO places -- the loop just above and the
+# concurrent block in .github/workflows/ci.yml -- because one runs them in
+# order for a person to read and the other runs them all at once for a runner.
+# A check added to one and not the other does not fail anything: CI simply
+# stops running it, quietly, for ever. So they are compared.
+here="$(sed -n 's/^    for test in \(.*\); do$/\1/p' tools/verify.sh | head -1 | tr ' ' '\n' | sort | tr '\n' ' ')"
+there="$(sed -n 's/^          checks="\(.*\)"$/\1/p' .github/workflows/ci.yml | head -1 | tr ' ' '\n' | sort | tr '\n' ' ')"
+if [ -z "$here" ] || [ -z "$there" ]; then
+    bad "could not read a check list -- this comparison has gone stale"
+elif [ "$here" = "$there" ]; then
+    ok "verify.sh and ci.yml run the same checks"
+else
+    bad "verify.sh and ci.yml disagree about which checks to run"
+    printf '   verify.sh: %s\n   ci.yml:    %s\n' "$here" "$there"
+fi
+
+# ---------------------------------------------------------------------------
 head_ "Controls"
 # ---------------------------------------------------------------------------
 # A GLSL uniform name that does not match the C++ is silently ignored --

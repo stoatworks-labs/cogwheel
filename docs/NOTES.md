@@ -163,13 +163,46 @@ preset to Custom on the next frame.
 
 ### Two things this session broke, and one it found
 
-**The CI control sweep is far too slow for a runner with no GPU.** `tools/sweep.py`
-at its local default of 640×360 was still running after **twenty-one minutes**,
-with four Dependabot pull requests queued behind it running the same thing. The
-sweep asks "did this control change ANY subpixel", which a coarse raster answers
-as well as a fine one, so CI now runs it at 320×180 with a 25-minute cap. The
-frame counts are deliberately unchanged — several controls only act when a figure
-closes, and cutting frames would report them dead.
+**The CI macOS job was far too slow, and the whole cost is software
+rasterisation.** The same suite is **1.5 seconds** on this Mac and **five
+minutes** on a runner with no GPU — a factor of about two hundred. The control
+sweep was worse: at its local default of 640×360 it was still running after
+**twenty-one minutes**, with four Dependabot pull requests queued behind it
+doing the same thing.
+
+Fixed in three ways, none of which weakens a check:
+
+- **Smaller raster for the sweep only.** It asks "did this control change ANY
+  subpixel", which a coarse raster answers as well as a fine one. CI runs it at
+  320×180. Frame counts are deliberately unchanged — several controls only act
+  when a figure closes, and cutting frames would report them dead.
+- **Parallelism, everywhere it was free.** Every parameter in the sweep is an
+  independent pair of `cgtest` processes, and every invariant is an independent
+  process with its own GL context; nothing was shared and nothing needed
+  ordering. `sweep.py` now uses a thread pool (`--jobs`, default one per core)
+  and prints in parameter order regardless of completion order. CI runs the ten
+  invariants as background jobs and one `wait`.
+- **One number that was simply larger than it needed to be.** `--presets`
+  rendered 600 frames per preset, twice each — two fifths of the whole suite.
+  It was raised to 600 by trial when `Show the Gears` failed at 180; that
+  preset's crank was then retuned and nobody went back. At 400 it measures 2.0%
+  covered against a 0.2% floor and 0.073 contrast against a 0.02 floor, and
+  every other preset has more margin. The comment now says what the number buys.
+
+⚠️ **`xargs -P … -I{}` is not the tool for this on macOS.** BSD xargs caps the
+command line it assembles under `-I` and answers **"command line cannot be
+assembled, too long"** for a `sh -c` string of ordinary length. Background jobs
+and a single `wait` do the same thing with no limit. (And the first local test
+of that block was misleading for a different reason: the Bash tool runs **zsh**,
+which does not word-split an unquoted `$checks`, so the loop saw one long word.
+GitHub's runners use bash; the block is now pinned with `shell: bash` and was
+tested under bash.)
+
+**The check list now lives in two places, so it is compared.** `verify.sh` runs
+the checks serially for a person to read; ci.yml runs them at once for a runner.
+A check added to one and not the other fails nothing — CI just stops running it,
+quietly, for ever. `verify.sh` reads both lists and fails if they differ, and
+that guard was tested by removing a check from ci.yml and watching it fire.
 
 ⚠️ **The win-lab box is shared, and a deploy hard-kills whoever else is on it.**
 The deploy here killed an Arena that had been up since 06:00. Checking first is

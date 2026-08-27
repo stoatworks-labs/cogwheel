@@ -35,10 +35,20 @@ the same id, the same position -- but the source build calls it Opacity and the
 effect build calls it Mix, because a source has nothing to mix with. Nothing may
 go in `BASE`, which is applied to both, unless it is named the same in both.
 
+**It is embarrassingly parallel and it should be.** Every parameter is an
+independent pair of renders in its own `cgtest` process with its own GL context,
+so nothing is shared and nothing needs a lock. Serially this is 82 renders; on a
+machine with a GPU that is a few seconds either way, but on a CI runner with no
+GPU it was **six and a half minutes**. Results are collected and printed in
+parameter order regardless of the order they finish, so the output is the same
+either way.
+
 **Never sweep the About block.** Those are buttons that open a web browser, and
 sweeping them opens one tab per press. `cgtest --list` marks them so.
 """
 import argparse
+import concurrent.futures
+import os
 import pathlib
 import re
 import subprocess
@@ -222,24 +232,44 @@ def difference(a, b):
     return changed / max(len(pa), 1), changed
 
 
+def sweep_one(job):
+    """One parameter, both ends. Runs in a worker thread; the work is two
+    subprocesses, so the GIL is irrelevant and nothing here is shared."""
+    pid, name, low, high, context = job
+    frames = context.get("_frames", FRAMES)
+    effect = context.get("_effect", False)
+
+    lo = dict(context)
+    hi = dict(context)
+    lo[name] = context.get("_low", low)
+    hi[name] = context.get("_high", high)
+
+    a = render(f"{SCRATCH}/{pid}_lo.png", lo, frames, effect)
+    b = render(f"{SCRATCH}/{pid}_hi.png", hi, frames, effect)
+    fraction, count = difference(a, b)
+    return pid, name, fraction, count
+
+
 def main():
     global WIDTH, HEIGHT
 
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--size", default="%dx%d" % (WIDTH, HEIGHT),
                     help="render size, WxH (default %dx%d)" % (WIDTH, HEIGHT))
+    ap.add_argument("--jobs", type=int, default=0,
+                    help="parallel renders (default: one per core, capped at 8)")
     args = ap.parse_args()
     if "x" in args.size:
         WIDTH, HEIGHT = (int(v) for v in args.size.split("x", 1))
+
+    jobs = args.jobs or min(8, os.cpu_count() or 1)
 
     if not pathlib.Path(BIN).exists():
         print(f"{BIN} is not built")
         return 1
 
-    dead = []
     skipped = []
-    checked = 0
-
+    work = []
     for pid, name, kind, low, high in parameters():
         if kind == "about":
             skipped.append((name, "a button that opens a web browser"))
@@ -247,23 +277,17 @@ def main():
         if name in SKIP:
             skipped.append((name, SKIP[name]))
             continue
+        work.append((pid, name, low, high, CONTEXT.get(name, {})))
 
-        context = CONTEXT.get(name, {})
-        frames = context.get("_frames", FRAMES)
-        effect = context.get("_effect", False)
-        low = context.get("_low", low)
-        high = context.get("_high", high)
+    results = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
+        for r in pool.map(sweep_one, work):
+            results.append(r)
 
-        lo = dict(context)
-        hi = dict(context)
-        lo[name] = low
-        hi[name] = high
-
-        a = render(f"{SCRATCH}/{pid}_lo.png", lo, frames, effect)
-        b = render(f"{SCRATCH}/{pid}_hi.png", hi, frames, effect)
-        fraction, count = difference(a, b)
-        checked += 1
-
+    # Printed in parameter order, not completion order, so a parallel run and a
+    # serial one produce the same report.
+    dead = []
+    for pid, name, fraction, count in sorted(results):
         # Counts, not percentages: a control that moves three subpixels and one
         # that moves none look identical as a percentage.
         if count == 0:
@@ -276,7 +300,7 @@ def main():
     for name, why in skipped:
         print(f"skip  {name}: {why}")
 
-    print(f"\n{checked} swept, {len(dead)} dead, {len(skipped)} skipped")
+    print(f"\n{len(results)} swept, {len(dead)} dead, {len(skipped)} skipped, {jobs} at a time")
     if dead:
         print("\nDEAD CONTROLS: " + ", ".join(dead))
         return 1

@@ -59,11 +59,45 @@ jobs:
         run: cmake --build build --config Release --parallel
 
       - name: The invariants
-        # The whole point of the harness. These are cheap, deterministic and
-        # need no GPU beyond the software renderer the runner has, so there is
-        # no reason for a pull request not to run them.
+        # The whole point of the harness. These are deterministic and need no
+        # GPU beyond the software renderer the runner has, so there is no
+        # reason for a pull request not to run them.
+        #
+        # Run CONCURRENTLY rather than through `--all`, which is serial. Each
+        # check is an independent process with its own GL context and its own
+        # off-screen target, so nothing is shared and nothing needs ordering.
+        # Serially they were five minutes here and a second and a half on a
+        # machine with a GPU -- software rasterisation is the whole cost, and
+        # `presets` and `scale` are two fifths of it between them, so they want
+        # to be running at the same time rather than one after the other.
+        #
+        # Every log is printed whether it passed or not: the numbers are the
+        # useful part of a green run, and losing them to keep the output tidy
+        # would make a slow drift invisible.
+        #
+        # Background jobs and a single `wait`, NOT `xargs -P -I{}`: BSD xargs
+        # caps the command line it assembles under -I and answers "command line
+        # cannot be assembled, too long" for a command this length. All ten at
+        # once rather than a pool of three -- the kernel time-slices them across
+        # whatever cores the runner has and the total is the same, without a
+        # batch ever stalling on its slowest member.
+        shell: bash
         run: |
-          ./build/cgtest --all
+          set -u
+          checks="closure defaults hosts detail rate beer liveness presets scale guard"
+          for c in $checks; do
+            ( ./build/cgtest --"$c" >"/tmp/cg-$c.log" 2>&1; echo $? >"/tmp/cg-$c.rc" ) &
+          done
+          wait
+          fail=0
+          for c in $checks; do
+            cat "/tmp/cg-$c.log"
+            if [ "$(cat "/tmp/cg-$c.rc")" != 0 ]; then
+              echo "::error::cgtest --$c failed"
+              fail=1
+            fi
+          done
+          exit $fail
 
       - name: Presets
         # A preset row with a fraction in an integer column compiles, loads and
