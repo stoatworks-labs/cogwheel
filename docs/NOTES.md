@@ -250,6 +250,68 @@ is the same symptom for a bad install, a host that does not scan that path, and
 a genuinely broken binary.** Establish the path first with a plugin known to
 work, then ask about yours.
 
+---
+
+## 2026-08-27 — v0.1.0, the first release
+
+Tagged, built by CI, signed, notarised, published, registered and deployed. The
+whole checklist in one pass. What is worth keeping from it:
+
+**Register a first release BEFORE tagging.** `gen-downloads.py` and
+`sync-about.py` both discover projects from files a brand-new repo is not in —
+`projects.json` and `sync-about.py`'s own separate target table — so a tag
+without them ships a plugin whose About buttons point at pages that do not exist
+and whose README has no download block. Afterglow and gaffer each cost a second
+release inside the hour by getting this backwards. Cogwheel did it in the right
+order and needed no second cut.
+
+**The auto-signer did not pick it up, and waiting would have shipped it
+unsigned.** The launchd agent runs every fifteen minutes and its 16:04 pass
+completed without mentioning cogwheel, although the repo was 17th in its own
+discovery list and the release had existed since 15:52. Rather than assume the
+next tick would catch it, `posthoc-sign.sh` was run by hand: three artefacts
+signed with the Developer ID, notarised, stapled where a format allows it, and
+re-uploaded. `verify-signing.sh` then reported all three notarised, and the tag
+was written into the agent's state file so it will not redo the work. **Check
+that the signer actually ran; do not assume it did.** An unsigned macOS release
+is invisible until a user sees "is damaged".
+
+**Run `gen-downloads.py` AFTER the signing, never before.** Signing changes every
+macOS artefact's size — the dmg went from 640 KB to 445 KB — so a download table
+generated first is stale within minutes. That is exactly how coinop's went out.
+
+**The website checkout belonged to another session.** It was ten commits behind
+origin and held a gallery feature, a Burrow panel, two reference pages and a
+232-line `index.astro` rewrite, none of it committed. Building and deploying from
+it would have published all of that and simultaneously *removed* escapement
+v0.1.2 and weblinked v1.0.2, which are on origin and were not in that tree. The
+work was done in a detached worktree at `origin/main` instead, and
+`gen-downloads.py` and `gen-catalog-data.py` were pointed at it through their
+`PROJECTS_ROOT` environment variable — which is what that variable is for. Three
+commits, 272 + 144 insertions, zero deletions, and the shared checkout was left
+exactly as it was found.
+
+### The video, and two things the cue sheet taught
+
+⚠️ **An EVENT cue must fire once.** Every other cue is re-applied on every frame
+from its time onwards, which is right for a value and catastrophic for an event:
+a `New Sheet` cue held at 1 re-fires its rising edge every frame, so the paper is
+wiped sixty times a second and the drawing never accumulates. The first cut came
+back with four of its seven sections showing a single short arc, and the cue
+sheet was innocent. `runSequence` now fires event cues once.
+
+⚠️ **Order the boundary: parameters first, wipe second.** Wiping at the section
+time and setting parameters a fraction later leaves a handful of frames in which
+the *old* machine draws onto the fresh sheet. Every section of the second cut
+carried a stray stroke from the one before it.
+
+☠️ **Never preview below 24 fps.** `Clock` clamps a frame to [1/240, 1/24]
+seconds, which is correct — an unclamped delta after a dropped frame would
+deposit a whole second of ink in one step. But it means a 10 fps preview advances
+the drawing at 41% speed, and half the figures came back unfinished. Ten minutes
+went on suspecting the closure arithmetic, which was right all along: 144 and 60
+give twelve lobes in five turns and `--closure` says so.
+
 ### Not done
 
 - ☠️ **The OFX build has never been applied to a clip inside Resolve.** It is

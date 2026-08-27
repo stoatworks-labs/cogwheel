@@ -59,7 +59,7 @@ What this set out to be. No code, assets or binaries from any of these were used
 <https://en.wikipedia.org/wiki/Spirograph>  
 Licence: not applicable — no code or assets taken
 
-The machine this plugin sets out to recreate: a toothed ring, a wheel rolling in mesh with it, and a pen in one of the wheel's holes. Nothing was taken from Hasbro or from any Spirograph product — the gear arithmetic is the standard hypotrochoid and epitrochoid derivation, written from the mechanism rather than from any implementation. The tooth counts under Snap to Set are the ones widely published for the classic sets and have NOT been verified against a physical set; Ring and Wheel remain free integers precisely so nothing depends on that list being right. 'Spirograph' is a registered trademark of Hasbro, Inc., and this project is not affiliated with or endorsed by them.
+The machine this plugin sets out to recreate: a toothed ring, a wheel rolling in mesh with it, and a pen in one of the wheel's holes. Nothing was taken from Hasbro or from any Spirograph product — the gear arithmetic is the standard hypotrochoid and epitrochoid derivation, written from the mechanism rather than from any implementation. The tooth counts offered by Snap to Set are the ones widely published for the classic sets and have NOT been verified against a physical set; Ring and Wheel remain free integers precisely so that nothing depends on that list being right. Spirograph is a registered trademark of Hasbro, Inc., and this project is not affiliated with or endorsed by them.
 
 ## Getting this wrong
 

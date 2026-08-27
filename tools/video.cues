@@ -1,0 +1,162 @@
+# The project video, as a cue sheet.
+#
+# Every frame is the real plugin drawing through the real FFGL sequence -- this
+# is the machine being *operated*, not a mock-up. Render with:
+#
+#   ./build/cgtest --sequence /tmp/cog-frames --script tools/video.cues \
+#                  --size 1920x1080 --seconds 62 --fps 30
+#
+# Syntax: `T Name=V` sets at a time, `T1..T2 Name=V1..V2` ramps between two
+# (eased, because a parameter that starts and stops abruptly reads as a cut).
+#
+# Every value here is the 0..1 the host sees, not the physical quantity -- see
+# Controls.h for why there is no other kind. The physical value each one lands
+# on is in the comment where it matters.
+#
+# ## The argument of the piece
+#
+# The plugin's whole claim is that the figure is what the gears do rather than a
+# curve anybody evaluates, so the video has to make that visible rather than
+# assert it. Hence the order:
+#
+#   1. the machine itself, with the ring, the wheel, the arm and the pen on
+#      screen -- you watch the pen being CARRIED before you see what it draws;
+#   2. the gears fade and the drawing is left standing on its own;
+#   3. the stack: four pens through four holes, each starting when the last
+#      figure closes, which is how the drawing everybody remembers is made;
+#   4. two integers -- 96 and 32 mesh three to one, close in ONE turn, and then
+#      STOP, which is the theorem; creep arrives and it never settles again;
+#   5. 105 and 64, which share no factor at all: sixty-four turns, a hundred and
+#      five lobes, printed as a negative;
+#   6. the pen matters -- a fibre tip against a fade, blooming at every cusp;
+#   7. back to paper, and the gears ghost in at the end to close the loop.
+#
+# ORDER MATTERS AT A SECTION BOUNDARY. The parameters change first and the
+# `New Sheet` wipe comes AFTER them, not before. Wiping first leaves a handful
+# of frames in which the OLD machine draws onto the fresh sheet, and every
+# section of the first cut carried a stray stroke from the one before it.
+#
+# The sheet is NOT wiped except where a cue says so. One instance draws the
+# whole piece, so a change of wheel lands on top of what is already there --
+# which is what happens at the table and is the reason the harness renders a
+# sequence from one instance rather than one per section.
+
+# ---------------------------------------------------------------- 1. the machine
+0    Preset=0            # Custom: this sheet is the truth, not a preset
+0    Ring Teeth=144
+0    Wheel Teeth=60      # gcd 12 -> 12 lobes, closes in 5 turns
+0    Mesh=0
+0    Pen Hole=0.770      # 0.75 of the wheel's radius
+0    Snap to Set=1
+0    Snap to Holes=1
+0    Sync=0
+0    Crank=0.466         # 0.25 turns/s -- slow enough to watch the wheel roll
+0    Detail=1
+0    Seed=1
+0    Creep=0.04
+0    Skip Chance=0
+0    Layers=1
+0    On Closing=3
+0    Wipe Sheet=0
+0    Pens=1              # Four Pens
+0    Pen Type=0          # ballpoint
+0    Flow=0.625
+0    Nib=0.398
+0    Pressure=0.10
+0    Grain=0.15
+0    Tooth=0.222
+0    Fade=0
+0    Print=0
+0    Size=0.596          # ring at 0.9 of the half-height: the whole gear is in frame
+0    Centre X=0.5
+0    Centre Y=0.5
+0    Show Gears=0.9
+0    Opacity=1
+
+# The pen is carried. Nothing here is drawing a curve, and for ten seconds that
+# is the only thing on screen.
+
+# ------------------------------------------------- 2. the gears leave, the line stays
+10..14  Show Gears=0.9..0.0
+12..16  Crank=0.466..0.667      # 0.25 -> 1 turn/s, so the figure closes on schedule
+
+# ------------------------------------------------------------------ 3. the stack
+17.0 Layers=4
+17.0 On Closing=0              # next hole each time a figure closes
+17.0 Wipe Sheet=1
+17.0 Ring Teeth=96
+17.0 Wheel Teeth=52            # gcd 4 -> 24 lobes, 13 turns
+17.0 Crank=0.737               # 1.63 turns/s: a figure every 8 s
+17.0 Size=0.610
+17.4 New Sheet=1
+17.6 New Sheet=0
+26..28 Crank=0.737..0.826      # 3 turns/s, so all four layers land inside the section
+
+# -------------------------------------------------------- 4. two integers, and a stop
+30.0 Wheel Teeth=32            # 3:1 exactly -- three lobes, closes in ONE turn
+30.0 Pen Hole=0.973            # out at the rim: a deltoid
+30.0 Layers=1
+30.0 On Closing=3
+30.0 Creep=0                   # a mesh exactly true. It draws once and then STOPS.
+30.0 Pens=4                    # graphite
+30.0 Crank=0.667
+30.0 Detail=2
+30.4 New Sheet=1
+30.6 New Sheet=0
+
+# Three seconds of nothing new happening. That is the theorem, and it is the
+# only honest way to show it.
+
+36..40 Creep=0..0.5            # the mesh goes out of true; it never settles again
+40..44 Crank=0.667..0.826
+
+# ------------------------------------------------------------ 5. no common factor
+45.0 Ring Teeth=105
+45.0 Wheel Teeth=64            # coprime: 64 turns, 105 lobes
+45.0 Pen Hole=0.500
+45.0 Creep=0.02
+45.0 Pens=3                    # spectrum
+45.0 Layers=4
+45.0 On Closing=2
+45.0 Flow=0.492
+45.0 Nib=0.287
+45.0 Crank=0.900               # 5 turns/s -- the web has to arrive inside the shot
+45.0 Detail=2
+45.4 New Sheet=1
+45.6 New Sheet=0
+45.6 Print=1                   # negative: the only route to a pale line on dark.
+                               # AFTER the wipe -- Print re-renders what is already
+                               # on the sheet, so flipping it first shows the previous
+                               # section's drawing inverted until the wipe lands.
+
+# ------------------------------------------------------------------- 6. the pen
+52.0 Ring Teeth=96
+52.0 Wheel Teeth=33            # gcd 3 -> 32 lobes, 11 turns
+52.0 Pen Hole=0.700
+52.0 Pen Type=1                # fibre tip: ink per unit TIME, so it blooms at the cusps
+52.0 Pens=1
+52.0 Layers=1
+52.0 On Closing=3
+52.0 Fade=0.855                # 2 s -- the one control that is not something the machine does
+52.0 Flow=0.778
+52.0 Crank=0.900
+52.0 Creep=0.03
+52.4 New Sheet=1
+52.6 New Sheet=0
+52.6 Print=0                   # back to positive, again after the wipe
+
+# --------------------------------------------------------------- 7. back to paper
+57.0 Fade=0
+57.0 Pen Type=0
+57.0 Wheel Teeth=60
+57.0 Ring Teeth=144
+57.0 Pens=1
+57.0 Layers=2
+57.0 On Closing=0
+57.0 Crank=0.900
+57.0 Flow=0.625
+57.0 Nib=0.398
+57.0 Size=0.596
+57.4 New Sheet=1
+57.6 New Sheet=0
+59..62 Show Gears=0.0..0.75    # the machine ghosts back in over its own drawing

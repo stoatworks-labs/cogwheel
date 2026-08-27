@@ -1512,6 +1512,236 @@ int runContact( const std::string& path, int frames )
 	return 0;
 }
 
+//---------------------------------------------------------------------------
+// --sequence
+//---------------------------------------------------------------------------
+struct Cue
+{
+	double from = 0.0;
+	double to   = 0.0;
+	std::string name;
+	float first  = 0.0f;
+	float second = 0.0f;
+	bool ramp    = false;
+};
+
+/// `T Name=V` sets at a time; `T1..T2 Name=V1..V2` ramps between two. Comments
+/// start at `#`. Every value is the 0..1 the host sees, because that is the only
+/// kind there is -- see Controls.h.
+bool parseCues( const std::string& path, std::vector< Cue >& cues )
+{
+	std::FILE* file = std::fopen( path.c_str(), "rb" );
+	if( file == nullptr )
+	{
+		std::fprintf( stderr, "cannot open cue sheet %s\n", path.c_str() );
+		return false;
+	}
+
+	char line[ 1024 ];
+	int number = 0;
+	while( std::fgets( line, sizeof( line ), file ) != nullptr )
+	{
+		++number;
+		std::string text = line;
+
+		const size_t hash = text.find( '#' );
+		if( hash != std::string::npos )
+			text = text.substr( 0, hash );
+
+		const size_t firstReal = text.find_first_not_of( " \t\r\n" );
+		if( firstReal == std::string::npos )
+			continue;
+		text = text.substr( firstReal );
+
+		const size_t split = text.find_first_of( " \t" );
+		if( split == std::string::npos )
+			continue;
+
+		const std::string when = text.substr( 0, split );
+		std::string assignment = text.substr( split );
+
+		const size_t assignStart = assignment.find_first_not_of( " \t" );
+		if( assignStart == std::string::npos )
+			continue;
+		assignment = assignment.substr( assignStart );
+		while( !assignment.empty() && std::strchr( "\r\n \t", assignment.back() ) != nullptr )
+			assignment.pop_back();
+
+		Cue cue;
+		const size_t timeRange = when.find( ".." );
+		if( timeRange != std::string::npos )
+		{
+			cue.from = std::strtod( when.substr( 0, timeRange ).c_str(), nullptr );
+			cue.to   = std::strtod( when.substr( timeRange + 2 ).c_str(), nullptr );
+			cue.ramp = true;
+		}
+		else
+		{
+			cue.from = cue.to = std::strtod( when.c_str(), nullptr );
+		}
+
+		const size_t equals = assignment.find( '=' );
+		if( equals == std::string::npos )
+		{
+			std::fprintf( stderr, "%s:%d: expected Name=value\n", path.c_str(), number );
+			std::fclose( file );
+			return false;
+		}
+
+		cue.name                = assignment.substr( 0, equals );
+		const std::string value = assignment.substr( equals + 1 );
+
+		const size_t valueRange = value.find( ".." );
+		if( cue.ramp && valueRange != std::string::npos )
+		{
+			cue.first  = std::strtof( value.substr( 0, valueRange ).c_str(), nullptr );
+			cue.second = std::strtof( value.substr( valueRange + 2 ).c_str(), nullptr );
+		}
+		else
+		{
+			cue.first = cue.second = std::strtof( value.c_str(), nullptr );
+			cue.ramp  = false;
+		}
+
+		cues.push_back( cue );
+	}
+
+	std::fclose( file );
+	return true;
+}
+
+/**
+    Render a cue-sheet driven frame sequence.
+
+    **One plugin instance for the whole piece**, and for cogwheel that is not a
+    detail -- it is the argument. The sheet is the drawing, so a change of wheel
+    or hole part way through draws the next figure ON TOP of what is already
+    there, exactly as it does when a person at the table swaps a wheel. Rendering
+    each section into a fresh instance would produce a sequence of unrelated
+    pictures and quietly contradict the thing the video is about.
+
+    The clock is driven from the frame counter, so the render is deterministic
+    and independent of how fast the GPU happens to be.
+*/
+int runSequence( const std::string& directory, const std::string& cuePath,
+                 int width, int height, double seconds, double fps, bool effect )
+{
+	std::vector< Cue > cues;
+	if( !cuePath.empty() && !parseCues( cuePath, cues ) )
+		return 1;
+
+	Target target = makeTarget( width, height );
+
+	CogwheelPlugin plugin( effect );
+	if( !startPlugin( plugin, target ) )
+	{
+		releaseTarget( target );
+		return 1;
+	}
+
+	// Every cue is checked against the real parameter list before a single frame
+	// is rendered. A typo in a name would otherwise be a cue that silently never
+	// fires, and the only symptom would be a video subtly less interesting than
+	// the sheet says it is.
+	const std::map< std::string, unsigned int > byName = parameterIndex( plugin );
+	for( const Cue& cue : cues )
+	{
+		if( byName.find( cue.name ) == byName.end() )
+		{
+			std::fprintf( stderr, "cue names '%s', which is not a parameter\n", cue.name.c_str() );
+			releaseTarget( target );
+			return 1;
+		}
+	}
+
+	const GLuint clip = effect ? makeTestClip( width, height ) : 0;
+	const int frames  = static_cast< int >( seconds * fps + 0.5 );
+
+	//---------------------------------------------------------------------
+	// Which cues address an EVENT parameter, and whether each has fired.
+	//
+	// ☠️ Every other cue is re-applied on every frame from its time onwards --
+	// that is what makes "a later cue on the same parameter wins" true, and it
+	// is right for a value. It is catastrophic for an event. `New Sheet` is a
+	// rising edge, so a pair of cues holding it at 1 and then 0 re-fires the
+	// edge on EVERY FRAME: the sheet is wiped sixty times a second and the
+	// drawing never accumulates at all. The first render of this piece came
+	// back with four of its seven sections showing a single short arc, and the
+	// cue sheet was innocent.
+	//
+	// So an event cue fires exactly once, on the first frame at or after its
+	// time, and is then inert.
+	//---------------------------------------------------------------------
+	std::vector< bool > isEvent( cues.size(), false );
+	std::vector< bool > fired( cues.size(), false );
+	for( size_t i = 0; i < cues.size(); ++i )
+		isEvent[ i ] = plugin.GetParamType( byName.at( cues[ i ].name ) ) == FF_TYPE_EVENT;
+
+	for( int frame = 0; frame < frames; ++frame )
+	{
+		const double now = static_cast< double >( frame ) / fps;
+
+		// Cues are applied in file order every frame rather than tracked as
+		// state, so a later cue on the same parameter simply wins -- which is
+		// what reading the sheet top to bottom leads you to expect.
+		for( size_t i = 0; i < cues.size(); ++i )
+		{
+			const Cue& cue = cues[ i ];
+			if( now < cue.from )
+				continue;
+
+			if( isEvent[ i ] )
+			{
+				if( fired[ i ] )
+					continue;
+				fired[ i ] = true;
+				plugin.SetFloatParameter( byName.at( cue.name ), cue.second );
+				continue;
+			}
+
+			float value = cue.second;
+			if( cue.ramp && now < cue.to && cue.to > cue.from )
+			{
+				const double t = ( now - cue.from ) / ( cue.to - cue.from );
+				// Smoothstep rather than linear: a parameter that starts and
+				// stops abruptly reads as a jump cut even when every value in
+				// between is right.
+				const double eased = t * t * ( 3.0 - 2.0 * t );
+				value = static_cast< float >( cue.first + ( cue.second - cue.first ) * eased );
+			}
+
+			plugin.SetFloatParameter( byName.at( cue.name ), value );
+		}
+
+		if( !renderFrame( plugin, target, frame, fps, clip ) )
+		{
+			std::fprintf( stderr, "render failed at frame %d\n", frame );
+			releaseTarget( target );
+			return 1;
+		}
+
+		char path[ 1024 ];
+		std::snprintf( path, sizeof( path ), "%s/frame%05d.png", directory.c_str(), frame );
+		if( !writePng( path, width, height, toBytes( readFloats( target ), width, height ) ) )
+		{
+			std::fprintf( stderr, "could not write %s\n", path );
+			releaseTarget( target );
+			return 1;
+		}
+
+		if( ( frame + 1 ) % 60 == 0 )
+			std::printf( "  %d / %d frames\n", frame + 1, frames );
+	}
+
+	plugin.DeInitGL();
+	if( clip != 0 )
+		glDeleteTextures( 1, &clip );
+	releaseTarget( target );
+
+	std::printf( "%d frames -> %s\n", frames, directory.c_str() );
+	return 0;
+}
+
 void usage()
 {
 	std::printf(
@@ -1529,6 +1759,7 @@ void usage()
 		"  --all       every one of the above\n\n"
 		"  --out PATH [--size WxH] [--frames N] [--preset N] [--effect]\n"
 		"  --contact PATH [--frames N]\n"
+		"  --sequence DIR --script FILE [--size WxH] [--seconds N] [--fps N] [--effect]\n"
 		"  --list      every parameter and what it currently means\n"
 		"  --names     parameter names over FFGL's 16-character limit\n"
 		"  --set ID=V  or --set \"Name=V\", repeatable\n" );
@@ -1545,6 +1776,10 @@ int main( int argc, char** argv )
 
 	std::string outPath;
 	std::string contactPath;
+	std::string sequenceDir;
+	std::string scriptPath;
+	double seconds = 60.0;
+	double fps     = 30.0;
 	int width   = 1280;
 	int height  = 720;
 	int frames  = 120;
@@ -1563,6 +1798,14 @@ int main( int argc, char** argv )
 			outPath = next();
 		else if( arg == "--contact" )
 			contactPath = next();
+		else if( arg == "--sequence" )
+			sequenceDir = next();
+		else if( arg == "--script" )
+			scriptPath = next();
+		else if( arg == "--seconds" )
+			seconds = std::atof( next().c_str() );
+		else if( arg == "--fps" )
+			fps = std::atof( next().c_str() );
 		else if( arg == "--size" )
 		{
 			const std::string size = next();
@@ -1623,6 +1866,9 @@ int main( int argc, char** argv )
 	}
 
 	int result = 0;
+
+	if( !sequenceDir.empty() )
+		result |= runSequence( sequenceDir, scriptPath, width, height, seconds, fps, effect );
 
 	if( !outPath.empty() )
 		result |= runOut( outPath, width, height, frames, preset, effect, sets );

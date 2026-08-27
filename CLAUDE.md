@@ -19,6 +19,8 @@ Read `AGENTS.md` before changing the machine, the ink model or the presets.
 - Contact sheet of every preset: `./build/cgtest --contact /tmp/sheet.png --frames 900`
 - List parameters, with what each currently means: `./build/cgtest --list`
 - Set anything by name: `--set "Wheel Teeth=32" --set "Creep=0.5"`
+- The project video's frames: `./build/cgtest --sequence DIR --script tools/video.cues
+  --size 1920x1080 --seconds 62 --fps 30`
 
 ## OpenFX build
 Built by default; copy `build/Cogwheel.ofx.bundle` to `/Library/OFX/Plugins`.
@@ -72,6 +74,15 @@ Disable with `-DBUILD_OFX=OFF`.
   software rasterisation is the entire cost. `tools/verify.sh` compares its own
   check list against ci.yml's, because a check added to one and not the other
   just stops running.
+- ☠️ **Never render or preview a sequence below 24 fps.** `Clock` clamps a frame
+  to [1/240, 1/24] s, so a 10 fps preview advances the drawing at 41% speed and
+  comes back with half its figures unfinished — with the plugin entirely
+  correct.
+- **An EVENT cue fires once.** Every other cue is re-applied every frame from
+  its time; an event re-applied every frame re-fires its rising edge, and
+  `New Sheet` held at 1 wipes the paper sixty times a second.
+- **At a section boundary in the cue sheet: parameters first, wipe second**, and
+  `Print` after the wipe — it re-renders what is already on the sheet.
 - **`Centre` is ±1.5, not ±2** — at ±2 both ends of Centre Y are off the sheet
   and the control reads dead.
 - `PlainDisplay` exists because `CFFGLPlugin::GetParameterDisplay` segfaults on
