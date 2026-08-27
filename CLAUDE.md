@@ -91,16 +91,14 @@ Disable with `-DBUILD_OFX=OFF`.
 
 ## Not done yet
 
-- **First contact is DONE for FFGL** (Arena 7.27.1, macOS and Windows, 2026-08-27
-  — see `docs/NOTES.md`). Still outstanding: **no OpenFX host has ever loaded
-  the Resolve build**, and its CPU renderer has never been compared against the
-  GPU one frame for frame.
-- **`StoatworksAbout.h` is a hand-written placeholder.** Cogwheel has no entry
-  in the website's `projects.json`, so `sync-about.py` cannot generate it and
-  the four About buttons point at pages that do not exist.
-- **`ATTRIBUTIONS.md` needs a `derived.json` entry** in `stoatworks-backend` for
-  the Spirograph itself (inspiration, not code). The component list is generated
-  and correct; the inspiration line is missing.
+- **First contact is DONE for FFGL** (Arena 7.27.1, macOS and Windows) **and for
+  OpenFX** (Resolve Studio 21.0.2.4 lists both plugins; ofxprobe renders one) —
+  2026-08-27, see `docs/NOTES.md`. Still outstanding: the OFX build has never
+  been applied to a clip inside Resolve, so its CPU renderer has not been
+  compared against the GPU one frame for frame.
+- ⚠️ **`~/Library/OFX/Plugins` is silently ignored by Resolve.** The bundle must
+  be in `/Library/OFX/Plugins` (needs admin) or reached by `OFX_PLUGIN_PATH`. An
+  OFX plugin in the user path looks exactly like a broken one.
 - **No release, no browser demo.** CI runs (the Windows job builds the `.dll`
   that was tested on win-lab); `release.yml` has never executed and
   `wrangler.toml` does not exist.

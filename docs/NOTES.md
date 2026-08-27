@@ -212,13 +212,51 @@ three **`apiary` drone processes from a session two days ago** are still running
 on this Mac and still holding a connection to the win-lab REST tunnel, which is
 what made the box look occupied.
 
+### OpenFX, the same day
+
+`ofxprobe` — an independent OFX host from `resolume-ofx-bridge` — loads both
+plugins out of the one bundle, reports 54 parameters on the effect, and renders
+a correct frame: paper, grain, Beer's law and the first stroke of ink. It draws
+only the first stroke because it renders **frame 0**, and a drawing is history;
+that is the replay behaving exactly as designed.
+
+⚠️ It reports the generator as `UNUSABLE: plugin does not support the Filter
+context`. That is the probe, not the plugin — `Cogwheel` declares Generator and
+General, which is right for a source, and the probe drives Filter.
+
+**DaVinci Resolve Studio 21.0.2.4 lists both plugins**, under a `Stoatworks`
+group in the Color page's OpenFX library.
+
+☠️ **It took three wrong turns to establish that, and every one of them looked
+like a broken plugin.**
+
+- **`~/Library/OFX/Plugins` is silently ignored.** The bundle must be in
+  `/Library/OFX/Plugins`, which needs an administrator. Nothing is logged and
+  nothing is skipped — the plugin simply never appears. `OFX_PLUGIN_PATH` is the
+  documented override and is what finally proved it.
+- **Resolve's log says `OFX - plugin not supported on this platform, is being
+  skipped`, twice per page load, and it is not yours.** Cogwheel's bundle holds
+  exactly two plugins, so the count matched perfectly and read as a rejection.
+  Adding a second unrelated bundle left the count at eight, which is what showed
+  it to be Resolve's own.
+- **Fusion's tool registry has no OFX in it at all** — 622 tools, zero
+  containing "ofx", not even Resolve's own ResolveFX. A search there comes back
+  empty for a plugin that is perfectly well loaded, so the negative means
+  nothing. The Edit page's Effects search is the same: it does not cover OpenFX.
+  The Color page's OpenFX library is the one that answers.
+
+The lesson generalises past this repo: **for an OFX plugin, "it does not appear"
+is the same symptom for a bad install, a host that does not scan that path, and
+a genuinely broken binary.** Establish the path first with a plugin known to
+work, then ask about yours.
+
 ### Not done
 
-- ☠️ **No OpenFX host has ever loaded the Resolve build.** It compiles, the
-  bundle is universal, `_OfxGetPlugin` is exported, the plist is right and it
-  ad-hoc signs — but nothing has run it. Its CPU renderer is a transcription of
-  the GLSL and has never been compared against the GPU build frame for frame;
-  that comparison is the obvious next test to write.
+- ☠️ **The OFX build has never been applied to a clip inside Resolve.** It is
+  listed and it renders in another host; what has not been done is dropping it
+  on a clip in Resolve and looking at the result. Its CPU renderer is a
+  transcription of the GLSL and has never been compared against the GPU build
+  frame for frame — that comparison is the obvious next test to write.
 - `StoatworksAbout.h` is a hand-written placeholder: cogwheel has no entry in
   the website's `projects.json`, so `sync-about.py` cannot generate it and the
   four About buttons point at pages that do not exist.

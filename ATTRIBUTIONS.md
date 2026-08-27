@@ -50,6 +50,17 @@ Vendored at external/openfx — a git submodule in resolume-ofx-bridge, a copy o
 
 The plugin ABI for the DaVinci Resolve and Nuke side of the same effects, so one core renders through both hosts.
 
+## Inspirations
+
+What this set out to be. No code, assets or binaries from any of these were used or examined — the debt is to the idea.
+
+### Spirograph — Denys Fisher
+
+<https://en.wikipedia.org/wiki/Spirograph>  
+Licence: not applicable — no code or assets taken
+
+The machine this plugin sets out to recreate: a toothed ring, a wheel rolling in mesh with it, and a pen in one of the wheel's holes. Nothing was taken from Hasbro or from any Spirograph product — the gear arithmetic is the standard hypotrochoid and epitrochoid derivation, written from the mechanism rather than from any implementation. The tooth counts under Snap to Set are the ones widely published for the classic sets and have NOT been verified against a physical set; Ring and Wheel remain free integers precisely so nothing depends on that list being right. 'Spirograph' is a registered trademark of Hasbro, Inc., and this project is not affiliated with or endorsed by them.
+
 ## Getting this wrong
 
 If your work is here and the description is inaccurate, the licence is wrong, or you would rather not be listed — open an issue and it will be fixed.

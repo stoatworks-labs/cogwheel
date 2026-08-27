@@ -11,8 +11,11 @@
 > it found one on the first run. Both plugins have since been **loaded into
 > Resolume Arena 7.27.1 on macOS and on Windows** — they register with the right
 > names, ids and categories, expose all 48 controls with nothing truncated,
-> render, and hold a factory preset through live rendering. **No OpenFX host has
-> ever loaded the Resolve build**, and nothing here has been used on a show.
+> render, and hold a factory preset through live rendering. The OpenFX build has
+> been loaded by **DaVinci Resolve Studio 21.0.2.4**, which lists both plugins in
+> its OpenFX library, and renders correctly through an independent OFX host. It
+> has **not** been driven over a clip inside Resolve, and nothing here has been
+> used on a show.
 
 A Spirograph, as two plugins for Resolume Arena/Avenue and as an OpenFX plugin
 for DaVinci Resolve.
@@ -21,6 +24,9 @@ A toothed ring is fixed to the paper. A smaller toothed wheel rolls around
 inside it, in mesh, and a pen dropped through one of the wheel's holes is
 carried along for the ride. That is the whole machine, and everything the plugin
 does falls out of it.
+
+<!-- downloads:start -->
+<!-- downloads:end -->
 
 ## The one idea
 
@@ -132,6 +138,20 @@ nothing at all about speed — that box has no GPU.
 `Cogwheel Ink` was additionally driven over a stock Gradient source on macOS with
 `Ink from Clip` on: the pen picked up the clip's colours and drew the figure out
 of them.
+
+**OpenFX**, same day: `ofxprobe` — an independent OFX host — loads both plugins,
+reports 54 parameters and renders a correct frame through the CPU renderer, and
+**DaVinci Resolve Studio 21.0.2.4 lists both under a "Stoatworks" group** in its
+OpenFX library. What has *not* been done is applying it to a clip inside Resolve
+and looking at the result, so the CPU renderer is proven to run and not yet
+proven to match the GPU one.
+
+⚠️ **On macOS the bundle must go in `/Library/OFX/Plugins`, which needs an
+administrator.** `~/Library/OFX/Plugins` is **silently ignored** — Resolve
+reports nothing, the plugin simply never appears, and the OpenFX library looks
+exactly as it would if the plugin were broken. That is how this was first
+mis-diagnosed. `OFX_PLUGIN_PATH` works as an override if you cannot write to
+`/Library`.
 
 ## Building and testing
 
