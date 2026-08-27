@@ -1,0 +1,8 @@
+{
+  "name": "cogwheel",
+  "version-string": "0.1.0",
+  "description": "Dependencies for building the Cogwheel FFGL plugins. GLEW is only needed on Windows and Linux; macOS uses the system OpenGL framework. The OpenFX SDK subset is vendored in-tree under external/openfx rather than fetched, because only the Support library's eight translation units are used and the upstream CMake pulls in far more than that. Nothing else is vendored: the harness writes its own PNGs through the zlib that ships with macOS.",
+  "dependencies": [
+    { "name": "glew", "platform": "!osx" }
+  ]
+}

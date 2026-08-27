@@ -1,0 +1,460 @@
+name: release
+
+# Build both Cogwheel plugins for the two platforms Resolume runs on:
+#   - macOS   -> universal (arm64 + x86_64) Cogwheel.bundle + "Cogwheel Ink.bundle"
+#   - Windows -> x64 Cogwheel.dll + "Cogwheel Ink.dll" (GLEW static via vcpkg)
+#
+# Two artefacts per platform and not one, because FFGL resolves a single plugMain
+# per binary: a source and an effect are two bundles, not one bundle with two
+# entries. Both go in the same zip -- an operator wants the pair.
+#
+# Trigger manually (Actions > release > Run workflow) or by pushing a v* tag.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macos-universal, os: macos-14 }
+          - { name: windows-x86_64,  os: windows-latest }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # --- macOS: no extra deps, universal build straight from CMake ---
+      - name: Configure (macOS)
+        if: runner.os == 'macOS'
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCOGWHEEL_BUILD_TOOLS=OFF
+
+      # --- Windows: GLEW comes from vcpkg, static-linked (static-md keeps the
+      #     CRT dynamic so the plugin matches the host) so the .dll has no
+      #     external glew32.dll runtime dependency. ---
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        run: >
+          cmake -B build -A x64
+          -DCMAKE_BUILD_TYPE=Release
+          -DCOGWHEEL_BUILD_TOOLS=OFF
+          -DVCPKG_TARGET_TRIPLET=x64-windows-static-md
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Derive version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.0.0-dev.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p out
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            for bundle in "Cogwheel" "Cogwheel Ink"; do
+              cp -R "build/$bundle.bundle" "out/$bundle.bundle"
+              # The registration lives in a file-scope constructor nothing names,
+              # so a linker that dropped the translation unit would still produce
+              # a loadable bundle that reports it contains no plugins. Check the
+              # export, and check the build really is universal -- CMake latches
+              # the architecture list at the first target and silently ignores a
+              # late change while still reporting success.
+              lipo -archs "out/$bundle.bundle/Contents/MacOS/$bundle"
+              # Actions runs `shell: bash` as `bash -eo pipefail`, so `cmd | grep -q X`
+              # FAILS when grep FINDS its match: grep exits at once, the writer takes
+              # SIGPIPE, and pipefail reports the pipeline as failed -- failing the
+              # release on a correct binary. It is output-size dependent, so it bites
+              # the biggest artefact first. Captured and matched with `case` instead.
+              __archs=$( lipo -archs "out/$bundle.bundle/Contents/MacOS/$bundle" )
+              case "$__archs" in
+                *arm64*) ;;
+                *) echo "expected arm64, got: $__archs"; exit 1 ;;
+              esac
+              __archs=$( lipo -archs "out/$bundle.bundle/Contents/MacOS/$bundle" )
+              case "$__archs" in
+                *x86_64*) ;;
+                *) echo "expected x86_64, got: $__archs"; exit 1 ;;
+              esac
+              __symbols=$( nm -gU "out/$bundle.bundle/Contents/MacOS/$bundle" )
+              case "$__symbols" in
+                *_plugMain*) ;;
+                *) echo "expected _plugMain, got: $__symbols"; exit 1 ;;
+              esac
+            done
+          else
+            cp "build/Release/Cogwheel.dll" "out/Cogwheel.dll"
+            cp "build/Release/Cogwheel Ink.dll" "out/Cogwheel Ink.dll"
+          fi
+          # Nothing else ships in the FFGL zip. Cogwheel generates its own
+          # picture, so unlike the sprite-sheet player this workflow was copied
+          # from there is no example asset to hand the operator.
+          # OpenFX build: shipped as its own zip, not folded into the FFGL
+          # artefact — it installs to the OFX folder, not Resolume's.
+          mkdir -p ofxout
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            cp -R "build/Cogwheel.ofx.bundle" "ofxout/Cogwheel.ofx.bundle"
+            # Same trap as the loop above, and this is the artefact it actually
+            # bites: `nm | grep` under pipefail fails BECAUSE the symbol was
+            # found, and the OFX bundle is several times the size of the FFGL
+            # ones so its `nm` is still writing when grep exits.
+            __ofxarchs=$( lipo -archs "ofxout/Cogwheel.ofx.bundle/Contents/MacOS/Cogwheel.ofx" )
+            case "$__ofxarchs" in
+              *arm64*x86_64*|*x86_64*arm64*) ;;
+              *) echo "OFX bundle is not universal: $__ofxarchs"; exit 1 ;;
+            esac
+            __ofxsyms=$( nm -gU "ofxout/Cogwheel.ofx.bundle/Contents/MacOS/Cogwheel.ofx" )
+            case "$__ofxsyms" in
+              *_OfxGetPlugin*) ;;
+              *) echo "OFX bundle does not export _OfxGetPlugin"; exit 1 ;;
+            esac
+            codesign --force --sign - --timestamp=none "ofxout/Cogwheel.ofx.bundle"
+          else
+            mkdir -p "ofxout/Cogwheel.ofx.bundle/Contents/Win64"
+            cp "build/Cogwheel.ofx.bundle/Contents/Win64/Cogwheel.ofx" "ofxout/Cogwheel.ofx.bundle/Contents/Win64/Cogwheel.ofx"
+          fi
+          ls -R ofxout
+          ls -R out
+
+      - name: Archive (zip)
+        shell: bash
+        run: |
+          cd out
+          if command -v 7z >/dev/null 2>&1; then
+            7z a "../cogwheel-${{ matrix.name }}.zip" ./*
+          else
+            zip -r "../cogwheel-${{ matrix.name }}.zip" ./*
+          fi
+          cd ../ofxout
+          if command -v 7z >/dev/null 2>&1; then
+            7z a "../cogwheel-ofx-${{ matrix.name }}.zip" ./*
+          else
+            zip -r "../cogwheel-ofx-${{ matrix.name }}.zip" ./*
+          fi
+
+      - name: Disk image (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        # A .dmg, but deliberately NOT a .pkg. An FFGL plugin's destination is
+        # per-user and edition-specific -- the README installs to
+        # ~/Documents/Resolume {Arena,Avenue}/Extra Effects -- so a .pkg would
+        # have to guess a path and would silently install to the wrong one for
+        # half of users. Mounting an image and dragging the bundles where the
+        # README says is the honest shape here.
+        run: |
+          source scripts/release-lib.sh
+          rl_init "Cogwheel" cogwheel "${{ steps.ver.outputs.version }}" \
+            com.stoatworks.cogwheel "$GITHUB_WORKSPACE"
+          cp README.md out/ 2>/dev/null || true
+          rl_adhoc_sign "out/Cogwheel.bundle"
+          rl_adhoc_sign "out/Cogwheel Ink.bundle"
+          rl_dmg "${{ matrix.name }}" out
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cogwheel-${{ matrix.name }}
+          path: |
+            *.zip
+            *.dmg
+          if-no-files-found: error
+
+  windows-installer:
+    name: Windows installer
+    needs: build
+    runs-on: ubuntu-latest
+    # makensis cross-compiles, so the installer is wrapped here from the zip the
+    # Windows job uploaded. Its directory page defaults to the common FFGL folder
+    # but stays editable, because Resolume reads plugins from a path the user
+    # chooses per edition.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Install NSIS
+        run: sudo apt-get update && sudo apt-get install -y nsis
+
+      - name: Build installer
+        shell: bash
+        run: |
+          source scripts/release-lib.sh
+          version="${GITHUB_REF_NAME#v}"
+          case "$version" in [0-9]*) ;; *) version="0.0.0" ;; esac
+          rl_init "Cogwheel" cogwheel "$version" com.stoatworks.cogwheel "$PWD/installers"
+          zip="$(find artifacts -name "cogwheel-windows-x86_64.zip" | head -1)"
+          if [ -z "$zip" ]; then echo "no Windows artefact, nothing to do"; exit 0; fi
+          stage="$RUNNER_TEMP/stage-win"
+          rm -rf "$stage"; mkdir -p "$stage"
+          unzip -q "$zip" -d "$stage"
+          cp README.md "$stage/" 2>/dev/null || true
+          # --cli: a plugin has no executable to make a shortcut to.
+          rl_nsis windows-x86_64 "$stage" --cli
+          ls -l installers
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cogwheel-windows-installer
+          path: installers/*
+          if-no-files-found: warn
+
+  linux-ofx:
+    name: linux-x86_64 (OpenFX)
+    runs-on: ubuntu-latest
+    # AlmaLinux 8 rather than the ubuntu image, for glibc 2.28 against 2.39.
+    # Resolve's supported Linux is Rocky 8.6, and a plugin linked against a
+    # newer glibc is refused by the loader there, while anything newer than
+    # Rocky 8 loads a 2.28 build perfectly well.
+    container: almalinux:8
+    steps:
+      # Cogwheel is the one plugin in the fleet whose OpenFX build is NOT free of
+      # GL, so it does not get the COGWHEEL_BUILD_FFGL=OFF treatment its siblings
+      # have. Engine.h includes signal/sources/Trace.h, Trace is a GPU edge
+      # trace and includes <FFGLSDK.h>, so the SDK headers and GLEW are a real
+      # dependency of CogwheelOFX on every platform -- which is why the Windows
+      # OFX build needs GLEW from vcpkg too.
+      #
+      # So: install the real dependency set, configure the whole project, and
+      # build ONLY the CogwheelOFX target. The FFGL plugins are configured but
+      # never compiled; nothing here pretends the coupling is not there.
+      - name: Toolchain
+        run: |
+          dnf -y install git cmake zip binutils gcc-toolset-13 dnf-plugins-core \
+            make curl tar libX11-devel libXext-devel libXi-devel
+          dnf config-manager --set-enabled powertools
+          dnf -y install glew-devel mesa-libGL-devel
+          source /opt/rh/gcc-toolset-13/enable
+          gcc --version
+
+      # Submodules, unlike the sibling repos' Linux jobs: the FFGL SDK is
+      # reached at configure time here.
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      # POSITION_INDEPENDENT_CODE is not boilerplate here. The FFGL SDK builds
+      # a static libffgl-sdk.a, and on Linux a non-PIC archive cannot be linked
+      # into a shared module at all: ld rejects it with "relocation R_X86_64_32S
+      # ... can not be used when making a shared object". macOS and Windows
+      # never hit it -- macOS compiles PIC unconditionally and Windows uses a
+      # different relocation model -- so this is a genuinely Linux-only need.
+      #
+      # Static libstdc++/libgcc: gcc-toolset-13's runtime is not installed on a
+      # stock Rocky or Alma 8, so a dynamically linked build would fail to load
+      # on precisely the machines this targets. GLEW and libGL stay dynamic --
+      # they are the host's to provide, and Resolve's Linux box has them.
+      # EL8's glew-devel ships ONLY libGLEW.so -- there is no packaged
+      # libGLEW.a anywhere in base, PowerTools or EPEL, so the static library
+      # has to be built. GLEW is small, BSD-licensed and builds with a plain
+      # make; install.all puts headers and both libraries under /usr so the
+      # headers and the archive are the same version, which they would not be
+      # if the 2.2.0 archive were paired with EL8's 2.0.0 headers.
+      - name: Build a static GLEW
+        run: |
+          source /opt/rh/gcc-toolset-13/enable
+          curl -fsSL -o glew.tgz \
+            https://github.com/nigels-com/glew/releases/download/glew-2.2.0/glew-2.2.0.tgz
+          tar xzf glew.tgz
+          make -C glew-2.2.0 SYSTEM=linux GLEW_DEST=/usr -j"$(nproc)" install.all
+          ls -l /usr/lib64/libGLEW.a
+
+      # GLEW_USE_STATIC_LIBS makes CMake's FindGLEW resolve libGLEW.a instead of
+      # the shared object. That is the whole point of this job: shipped
+      # dynamically, the plugin needs libGLEW.so.2 on the user's machine, and on
+      # Rocky 8 there is no way to get it without enabling PowerTools and
+      # installing a -devel package. Statically linked, the only GL thing left
+      # is libGL itself, which any machine running Resolve necessarily has.
+      - name: Configure
+        run: |
+          source /opt/rh/gcc-toolset-13/enable
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCOGWHEEL_BUILD_TOOLS=OFF \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DGLEW_USE_STATIC_LIBS=ON \
+            -DCMAKE_CXX_FLAGS="-static-libstdc++ -static-libgcc"
+
+      - name: Build
+        run: |
+          source /opt/rh/gcc-toolset-13/enable
+          cmake --build build --parallel --target CogwheelOFX
+
+      - name: Collect artifact
+        run: |
+          so="build/Cogwheel.ofx.bundle/Contents/Linux-x86-64/Cogwheel.ofx"
+          test -f "$so"
+
+          # `nm ... | grep -q` SIGPIPEs under `bash -eo pipefail` when grep
+          # FINDS its match, failing the release on a correct binary. Captured
+          # and matched with `case` instead, as the macOS job does.
+          __syms=$( nm -D --defined-only "$so" )
+          case "$__syms" in
+            *OfxGetPlugin*) ;;
+            *) echo "expected OfxGetPlugin, got: $__syms"; exit 1 ;;
+          esac
+
+          # The whole reason for the container, asserted rather than assumed:
+          # the highest glibc symbol version the binary asks for must not be
+          # newer than Rocky 8's 2.28.
+          __glibc=$( objdump -T "$so" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1 )
+          echo "highest glibc requirement: $__glibc"
+          if [ "$( printf '%s\nGLIBC_2.28\n' "$__glibc" | sort -uV | tail -1 )" != "GLIBC_2.28" ]; then
+            echo "$__glibc is newer than Rocky 8 provides"; exit 1
+          fi
+          # Asserted, not printed. The entire point of linking GLEW statically
+          # is that this plugin stops demanding a library a Rocky 8 user cannot
+          # install without enabling PowerTools and pulling a -devel package.
+          # If libGLEW ever comes back into NEEDED, that regression must fail
+          # the release rather than ship and be discovered by a user seeing no
+          # plugin and no error.
+          readelf -d "$so" | grep NEEDED
+          __needed=$( readelf -d "$so" | grep NEEDED )
+          case "$__needed" in
+            *libGLEW*) echo "libGLEW is back in NEEDED -- static link regressed"; exit 1 ;;
+          esac
+
+          mkdir -p "ofxout/Cogwheel.ofx.bundle/Contents/Linux-x86-64"
+          cp "$so" "ofxout/Cogwheel.ofx.bundle/Contents/Linux-x86-64/Cogwheel.ofx"
+          ls -R ofxout
+
+      - name: Archive (zip)
+        run: |
+          cd ofxout
+          zip -r "../cogwheel-ofx-linux-x86_64.zip" ./*
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cogwheel-linux-x86_64
+          path: "*.zip"
+          if-no-files-found: error
+
+  linux-load:
+    name: linux-x86_64 (load test)
+    needs: linux-ofx
+    runs-on: ubuntu-latest
+    # Rocky 8 and not the AlmaLinux 8 that built it: the claim being tested is
+    # "this loads on the distro Resolve supports", and testing it in the image
+    # that produced the binary would only prove the image agrees with itself.
+    #
+    # This is a LOAD test, not a render test. It dlopens the shipped .ofx and
+    # calls the two entry points an OFX host calls first, which runs the OFX
+    # Support library's static initialisers and the factory construction in
+    # getPluginIDs -- the parts that actually fail when an ABI or a glibc floor
+    # is wrong. What it does not do is render a frame or drive a real host;
+    # Resolve is x86_64-only and needs a GPU, so nothing here stands in for
+    # having run the plugin in Resolve.
+    container: rockylinux:8
+    steps:
+      # glew and mesa-libGL are installed here where the sibling repos' load
+      # tests need nothing: Cogwheel's OpenFX build links GL (see the build job
+      # for why), so libGLEW.so.2 has to be present or dlopen fails outright.
+      #
+      # That is a real deployment requirement of this plugin and not a quirk of
+      # the test: the first run of this job failed with "libGLEW.so.2.0: cannot
+      # open shared object file", which is exactly what a user without GLEW
+      # installed would get. Resolve's Linux box has libGL; it does not
+      # necessarily have GLEW. Documented in the README rather than hidden by
+      # installing it here and saying nothing.
+      # A STOCK Rocky 8: gcc and the shell tools to run the probe, and nothing
+      # else. No glew, no mesa-libGL, no extra repositories enabled.
+      #
+      # That bareness is the test. This plugin used to need libGLEW.so.2 on the
+      # user's machine, which on Rocky 8 meant enabling PowerTools and
+      # installing a -devel package to obtain a runtime library -- and the
+      # failure a user saw was no plugin and no error, because OFX hosts do not
+      # report load failures. With GLEW linked statically the plugin should
+      # load on a machine that has never heard of it, so this container is
+      # exactly the machine to prove it on.
+      # A stock Rocky 8: no glew, no extra repositories. mesa-libGL is the one
+      # concession and it is a fair one -- base repo, and present on any machine
+      # that can run Resolve. libGLEW was neither.
+      - name: Toolchain
+        run: dnf -y install gcc unzip findutils bash mesa-libGL
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: cogwheel-linux-x86_64
+          path: art
+
+      - name: Load the plugin and ask it what it is
+        shell: bash
+        run: |
+          unzip -q art/*.zip -d unz
+          so="$( find unz -name '*.ofx' | head -1 )"
+          test -n "$so"
+          echo "testing $so"
+          ldd "$so" || true
+
+          cat > probe.c <<'EOF'
+          #include <dlfcn.h>
+          #include <stdio.h>
+
+          /* The head of OfxPlugin from ofxCore.h, which is all this needs. */
+          typedef struct {
+              const char  *pluginApi;
+              int          apiVersion;
+              const char  *pluginIdentifier;
+              unsigned int pluginVersionMajor;
+              unsigned int pluginVersionMinor;
+              void        *setHost;
+              void        *mainEntry;
+          } OfxPluginHead;
+
+          int main( int argc, char **argv )
+          {
+              if( argc < 2 ) { fprintf( stderr, "usage: probe <plugin.ofx>\n" ); return 2; }
+
+              void *h = dlopen( argv[ 1 ], RTLD_NOW | RTLD_LOCAL );
+              if( !h ) { fprintf( stderr, "dlopen: %s\n", dlerror() ); return 1; }
+
+              int            ( *count )( void ) = dlsym( h, "OfxGetNumberOfPlugins" );
+              OfxPluginHead *( *get )( int )    = dlsym( h, "OfxGetPlugin" );
+              if( !count || !get ) { fprintf( stderr, "entry points missing\n" ); return 1; }
+
+              int n = count();
+              printf( "OfxGetNumberOfPlugins -> %d\n", n );
+              if( n < 1 ) { fprintf( stderr, "no plugins in the bundle\n" ); return 1; }
+
+              for( int i = 0; i < n; ++i ) {
+                  OfxPluginHead *p = get( i );
+                  if( !p ) { fprintf( stderr, "OfxGetPlugin(%d) is NULL\n", i ); return 1; }
+                  printf( "  [%d] %s  api=%s v%u.%u\n", i, p->pluginIdentifier,
+                          p->pluginApi, p->pluginVersionMajor, p->pluginVersionMinor );
+              }
+              return 0;
+          }
+          EOF
+          gcc -O0 -o probe probe.c -ldl
+          ./probe "$so"
+
+  release:
+    name: Publish release
+    needs: [build, linux-ofx, linux-load, windows-installer]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true

@@ -1,0 +1,130 @@
+name: ci
+
+# Until this existed the repo had no workflow with a `pull_request` trigger at
+# all — only a tag-driven release — so Dependabot bumps arrived with no status
+# check to gate a merge on and simply accumulated.
+#
+# BOTH platforms, and the Windows job is here because its absence cost the
+# v0.1.0 release two failed attempts.
+#
+# The version of this file inherited from a sibling repo ran macOS only, with a
+# comment arguing that Windows "needs GLEW from vcpkg, which is a slow, fragile
+# thing to put in front of every pull request for a compile break that would
+# almost certainly show up on macOS too."
+#
+# That reasoning is wrong in precisely the case that matters. The break it
+# missed WAS a GLEW break: the OpenFX target spliced `cogwheel_core` in as
+# `$<TARGET_OBJECTS:>` and so inherited none of its usage requirements,
+# including the PUBLIC link to GLEW::GLEW. macOS cannot see that class of bug at
+# all, because macOS uses the system OpenGL framework and never links GLEW. The
+# failure modes a second platform catches are the ones the first platform is
+# structurally blind to — which is the whole argument for having it.
+#
+# There is no Linux job: the CMakeLists branches on APPLE and WIN32 and has no
+# Linux path.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  macos:
+    name: macOS
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The FFGL SDK is a submodule (the OpenFX SDK is vendored in-tree).
+          # Without this CMake fails at configure time with a missing-directory
+          # error that reads like a broken repo.
+          submodules: recursive
+
+      - name: Configure
+        # arm64 only, unlike the release build's universal arm64;x86_64 — the
+        # second slice doubles the build for no extra signal, because a source
+        # break is not architecture-specific. Passed as a single value with no
+        # semicolon, which the shell would split.
+        #
+        # COGWHEEL_BUILD_TOOLS is ON here where the release build turns it OFF:
+        # cgtest is a large slice of the C++ and the only place the plugin's
+        # maths is written down twice, so compiling it is most of the value.
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_OSX_ARCHITECTURES=arm64
+          -DCOGWHEEL_BUILD_TOOLS=ON
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: The invariants
+        # The whole point of the harness. These are cheap, deterministic and
+        # need no GPU beyond the software renderer the runner has, so there is
+        # no reason for a pull request not to run them.
+        run: |
+          ./build/cgtest --all
+
+      - name: Presets
+        # A preset row with a fraction in an integer column compiles, loads and
+        # renders, and silently selects that parameter's minimum.
+        run: python3 tools/check_presets.py
+
+      - name: Controls
+        # A GLSL uniform name that does not match the C++ is silently ignored,
+        # so a control can be stone dead while everything compiles, links and
+        # renders. It found Centre Y on its first run.
+        run: python3 tools/sweep.py
+
+      # Uploading is not only for the artefact. This repo has no package
+      # manifest, so github-actions is its only Dependabot ecosystem — and a
+      # bump to actions/upload-artifact otherwise touches release.yml alone,
+      # a workflow no pull request ever runs. Using it here means the check
+      # actually exercises the action being bumped.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cogwheel-macos-arm64
+          path: build/*.bundle
+          if-no-files-found: error
+
+  windows:
+    name: Windows
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Configure
+        # The vcpkg manifest exists solely so this line has something to
+        # resolve; on macOS it declares nothing at all. The triplet is static
+        # GLEW against a dynamic CRT, so the plugin matches its host.
+        #
+        # Tools are OFF: cgtest is macOS-only (CGL), and the macOS job above
+        # already compiles and runs it.
+        #
+        # The toolchain path MUST stay double-quoted. A `run:` step on Windows
+        # is PowerShell, and unquoted this expanded to nothing — CMake was
+        # handed the literal string `$env:VCPKG_INSTALLATION_ROOT/...` and
+        # failed with "Could not find toolchain file", which reads like a
+        # broken runner image rather than a quoting bug. release.yml had the
+        # quotes and this file did not, which is why releases built and every
+        # pull request went red.
+        #
+        # `-A x64` is here for the same reason: this job only earns its keep if
+        # it configures the way release.yml does.
+        run: >
+          cmake -B build -A x64
+          -DCMAKE_BUILD_TYPE=Release
+          -DCOGWHEEL_BUILD_TOOLS=OFF
+          -DVCPKG_TARGET_TRIPLET=x64-windows-static-md
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cogwheel-windows-x86_64
+          path: build/Release/*.dll
+          if-no-files-found: error
