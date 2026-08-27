@@ -25,6 +25,8 @@ inside it, in mesh, and a pen dropped through one of the wheel's holes is
 carried along for the ride. That is the whole machine, and everything the plugin
 does falls out of it.
 
+**Video:** [What it does, in 68 seconds](https://www.youtube.com/watch?v=_epebasO_is)
+
 <!-- downloads:start -->
 
 ## Download
