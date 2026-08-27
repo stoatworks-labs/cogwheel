@@ -8,9 +8,11 @@
 > two pens crossing transmit the *product* of what each transmits alone, which
 > is what makes ink subtractive rather than additive. Both probe the same code
 > that ships. A control sweep fails if any parameter turns out to do nothing —
-> it found one on the first run. **No build of this plugin has yet been loaded
-> into Resolume or Resolve on any machine.** Everything below was verified in an
-> offline harness.
+> it found one on the first run. Both plugins have since been **loaded into
+> Resolume Arena 7.27.1 on macOS and on Windows** — they register with the right
+> names, ids and categories, expose all 48 controls with nothing truncated,
+> render, and hold a factory preset through live rendering. **No OpenFX host has
+> ever loaded the Resolve build**, and nothing here has been used on a show.
 
 A Spirograph, as two plugins for Resolume Arena/Avenue and as an OpenFX plugin
 for DaVinci Resolve.
@@ -108,6 +110,28 @@ round the sheet as it goes. `Slipping Gear` is the ruined drawing, on purpose.
 so: a two-second `Fade` turns the accumulating sheet into a moving line. Paper
 does not fade. Fade is the only control in the plugin that is not something the
 machine can do, and it is there because a VJ needs the sheet to clear.
+
+## First contact
+
+Verified 2026-08-27, on **Resolume Arena 7.27.1 rev 15990**, on two machines:
+
+| | macOS 26.4.1 (Apple GPU) | Windows 11 x64 (Mesa llvmpipe 26.2.0) |
+| --- | --- | --- |
+| loads | ✅ both bundles | ✅ both DLLs, from the CI artifact |
+| registers | ✅ `Cogwheel` CW01 **category 3** (source), `Cogwheel Ink` CW02 **category 1** (effect) | ✅ identical |
+| controls | ✅ 48, none over FFGL's 16-character limit | ✅ identical |
+| renders | ✅ | ✅ — a different GLSL compiler entirely |
+| presets | ✅ applied, **held** through live rendering, dropped to Custom on a real edit | ✅ |
+| clean | ✅ no complaint in Arena's log | ✅ no complaint, and no crash dump |
+
+The Windows half matters more than it looks: llvmpipe's GLSL compiler is not
+macOS's, so the shaders passing there is real evidence about the shader source
+rather than about one vendor's driver. It says nothing about NVIDIA or AMD, and
+nothing at all about speed — that box has no GPU.
+
+`Cogwheel Ink` was additionally driven over a stock Gradient source on macOS with
+`Ink from Clip` on: the pen picked up the clip's colours and drew the figure out
+of them.
 
 ## Building and testing
 

@@ -122,12 +122,70 @@ integers over a wide range precisely so nothing depends on the list being right;
 `Snap to Set` merely restricts them. The twelve hole positions are openly a
 model — the discreteness is the point, not the specific radii.
 
+---
+
+## 2026-08-27 — first contact, both platforms, same afternoon
+
+Arena **7.27.1 rev 15990** on macOS 26.4.1 and on the win-lab VM (Mesa llvmpipe
+26.2.0, no GPU). Windows was tested with the **CI artifact**, not a local build —
+the `.dll` a user would download.
+
+Everything passed, first time, on both:
+
+- **Loads and registers**, with the right categories: `Cogwheel` CW01 category
+  **3** (source), `Cogwheel Ink` CW02 category **1** (effect). Identical on both
+  platforms. That is the check that caught four bad vectrix releases.
+- **All 48 controls** exposed, integer ranges intact (12–360 and 3–240), choice
+  parameters carrying their element names. **Nothing truncated** — the only two
+  names at FFGL's 16-character limit are the About buttons, and both are
+  complete.
+- **Renders** on both. The Windows half is the one worth having: llvmpipe's GLSL
+  compiler is not macOS's, so the shaders are now known to compile somewhere
+  other than one vendor's driver.
+- **Presets work live**, which is the fleet's hardest-won behaviour. Applied,
+  **held for six seconds of live rendering** while Arena pushed parameters at
+  it, and dropped to Custom on a genuine edit — logged by the plugin as
+  `preset dropped to Custom: parameter 11 moved to 0.420000`.
+- **No complaint in Arena's log** on either platform, and **no crash dump** on
+  Windows.
+- The plugin's own diagnostics log works on both, at
+  `~/Library/Logs/cogwheel/` and `%LOCALAPPDATA%\cogwheel\logs\`.
+
+`Cogwheel Ink` was driven over a stock Gradient source with `Ink from Clip` on,
+and the pen picked up the clip's colours and drew the figure out of them.
+
+**One number is worth writing down.** Arena hands an integer back as
+`104.99999999999999` for a preset value of 105 — a double round-trip. The
+preset-echo comparison's tolerance is a **quantisation allowance of 1e-3**, not a
+float epsilon, and this is exactly the case it exists for. At the 1e-4 the fleet
+first used, that echo would have read as an operator edit and dropped every
+preset to Custom on the next frame.
+
+### Two things this session broke, and one it found
+
+**The CI control sweep is far too slow for a runner with no GPU.** `tools/sweep.py`
+at its local default of 640×360 was still running after **twenty-one minutes**,
+with four Dependabot pull requests queued behind it running the same thing. The
+sweep asks "did this control change ANY subpixel", which a coarse raster answers
+as well as a fine one, so CI now runs it at 320×180 with a 25-minute cap. The
+frame counts are deliberately unchanged — several controls only act when a figure
+closes, and cutting frames would report them dead.
+
+⚠️ **The win-lab box is shared, and a deploy hard-kills whoever else is on it.**
+The deploy here killed an Arena that had been up since 06:00. Checking first is
+the documented rule and it was not followed. What made it look idle afterwards
+was right — no log activity for an hour — but that was luck, not method. Related:
+three **`apiary` drone processes from a session two days ago** are still running
+on this Mac and still holding a connection to the win-lab REST tunnel, which is
+what made the box look occupied.
+
 ### Not done
 
-- ☠️ **No build has been loaded into Resolume or Resolve on any machine.** The
-  README's disclaimer says so in those words and should be replaced the moment
-  it stops being true. The fleet's experience is that first contact with a real
-  host finds what no offline test can.
+- ☠️ **No OpenFX host has ever loaded the Resolve build.** It compiles, the
+  bundle is universal, `_OfxGetPlugin` is exported, the plist is right and it
+  ad-hoc signs — but nothing has run it. Its CPU renderer is a transcription of
+  the GLSL and has never been compared against the GPU build frame for frame;
+  that comparison is the obvious next test to write.
 - `StoatworksAbout.h` is a hand-written placeholder: cogwheel has no entry in
   the website's `projects.json`, so `sync-about.py` cannot generate it and the
   four About buttons point at pages that do not exist.
@@ -137,10 +195,7 @@ model — the discreteness is the point, not the specific radii.
   sets out to recreate. Deliberately not added here: that master lives in
   another repo and editing it from this session would have left an uncommitted
   change in a shared checkout.
-- No CI run, no Windows build, no release, no browser demo. The `.github`
-  workflows are copied from vectrix and have never executed.
-- The OpenFX build has been **compiled and its bundle verified** (universal,
-  `_OfxGetPlugin` exported, plist correct, ad-hoc signs) but never loaded by a
-  host. Its CPU renderer is a transcription of the GLSL and has not been
-  compared against the GPU build frame for frame; that comparison is the obvious
-  next test to write.
+- No release and no browser demo. **CI now runs**: the Windows job goes green in
+  1m54s and its artifact is what was tested on win-lab; the macOS job builds and
+  passes the invariants and the preset check. `release.yml` has still never
+  executed.

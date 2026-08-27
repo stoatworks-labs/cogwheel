@@ -85,18 +85,19 @@ Disable with `-DBUILD_OFX=OFF`.
 
 ## Not done yet
 
-- ☠️ **First contact.** No build has been loaded into Resolume or Resolve on any
-  machine. Everything is verified offline. The README's disclaimer says so and
-  should be reworded the moment that changes.
+- **First contact is DONE for FFGL** (Arena 7.27.1, macOS and Windows, 2026-08-27
+  — see `docs/NOTES.md`). Still outstanding: **no OpenFX host has ever loaded
+  the Resolve build**, and its CPU renderer has never been compared against the
+  GPU one frame for frame.
 - **`StoatworksAbout.h` is a hand-written placeholder.** Cogwheel has no entry
   in the website's `projects.json`, so `sync-about.py` cannot generate it and
   the four About buttons point at pages that do not exist.
 - **`ATTRIBUTIONS.md` needs a `derived.json` entry** in `stoatworks-backend` for
   the Spirograph itself (inspiration, not code). The component list is generated
   and correct; the inspiration line is missing.
-- **No CI, no Windows build, no release workflow, no browser demo.** The
-  `.github` workflows are copied and untested, and `wrangler.toml` does not
-  exist.
+- **No release, no browser demo.** CI runs (the Windows job builds the `.dll`
+  that was tested on win-lab); `release.yml` has never executed and
+  `wrangler.toml` does not exist.
 - **The classic set's tooth counts in `machine/Wheels.cpp` are unverified.**
   They are what the published part lists give and have not been checked against
   a set in hand; `Ring` and `Wheel` are free integers precisely so that nothing

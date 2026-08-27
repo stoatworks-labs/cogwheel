@@ -38,6 +38,7 @@ go in `BASE`, which is applied to both, unless it is named the same in both.
 **Never sweep the About block.** Those are buttons that open a web browser, and
 sweeping them opens one tab per press. `cgtest --list` marks them so.
 """
+import argparse
 import pathlib
 import re
 import subprocess
@@ -49,6 +50,14 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 BIN = str(ROOT / "build" / "cgtest")
 SCRATCH = tempfile.mkdtemp(prefix="cgsweep")
 
+# Overridable, because the same sweep runs in two places with very different
+# budgets. Locally, through `tools/verify.sh`, it is a few seconds at 640x360.
+# On a CI runner with no GPU every pixel costs about a hundred times more, and
+# 640x360 is four times the pixels of 320x180 for no extra signal -- the
+# question here is "did this control change ANY subpixel", which a coarse
+# raster answers as well as a fine one. FRAMES is NOT reduced there: several
+# controls only act when a figure closes, and cutting the frame count would
+# report them dead.
 WIDTH, HEIGHT = 640, 360
 FRAMES = 240
 
@@ -214,6 +223,15 @@ def difference(a, b):
 
 
 def main():
+    global WIDTH, HEIGHT
+
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--size", default="%dx%d" % (WIDTH, HEIGHT),
+                    help="render size, WxH (default %dx%d)" % (WIDTH, HEIGHT))
+    args = ap.parse_args()
+    if "x" in args.size:
+        WIDTH, HEIGHT = (int(v) for v in args.size.split("x", 1))
+
     if not pathlib.Path(BIN).exists():
         print(f"{BIN} is not built")
         return 1

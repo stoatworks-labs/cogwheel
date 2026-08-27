@@ -74,7 +74,17 @@ jobs:
         # A GLSL uniform name that does not match the C++ is silently ignored,
         # so a control can be stone dead while everything compiles, links and
         # renders. It found Centre Y on its first run.
-        run: python3 tools/sweep.py
+        #
+        # At 320x180, and with a timeout, because the runner has no GPU. The
+        # first version of this step ran the local default of 640x360 and was
+        # still going after twenty-one minutes -- with four Dependabot pull
+        # requests queued behind it running the same thing. Four times fewer
+        # pixels costs no signal: the question is whether a control changed ANY
+        # subpixel, and a coarse raster answers that as well as a fine one. The
+        # frame count is deliberately NOT reduced -- several controls only act
+        # when a figure closes.
+        timeout-minutes: 25
+        run: python3 tools/sweep.py --size 320x180
 
       # Uploading is not only for the artefact. This repo has no package
       # manifest, so github-actions is its only Dependabot ecosystem — and a
