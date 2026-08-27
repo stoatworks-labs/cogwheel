@@ -26,6 +26,46 @@ carried along for the ride. That is the whole machine, and everything the plugin
 does falls out of it.
 
 <!-- downloads:start -->
+
+## Download
+
+**[v0.1.0](https://github.com/stoatworks-labs/cogwheel/releases/tag/v0.1.0)** — prebuilt for macOS, Windows and Linux. Pick your platform:
+
+<details>
+<summary><b>macOS</b> — Universal (Apple Silicon + Intel)</summary>
+
+| Build | Download | Size |
+| --- | --- | --- |
+| Universal (Apple Silicon + Intel) · .dmg disk image | [`cogwheel-0.1.0-macos-universal.dmg`](https://github.com/stoatworks-labs/cogwheel/releases/download/v0.1.0/cogwheel-0.1.0-macos-universal.dmg) | 445 KB |
+| Universal (Apple Silicon + Intel) · .zip archive | [`cogwheel-macos-universal.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-macos-universal.zip) | 392 KB |
+| Universal (Apple Silicon + Intel) · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`cogwheel-ofx-macos-universal.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-ofx-macos-universal.zip) | 422 KB |
+
+</details>
+
+<details>
+<summary><b>Windows</b> — x64</summary>
+
+| Build | Download | Size |
+| --- | --- | --- |
+| x64 · .exe installer | [`cogwheel-0.1.0-windows-x86_64-setup.exe`](https://github.com/stoatworks-labs/cogwheel/releases/download/v0.1.0/cogwheel-0.1.0-windows-x86_64-setup.exe) | 240 KB |
+| x64 · .zip archive | [`cogwheel-windows-x86_64.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-windows-x86_64.zip) | 248 KB |
+| x64 · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`cogwheel-ofx-windows-x86_64.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-ofx-windows-x86_64.zip) | 151 KB |
+
+</details>
+
+<details>
+<summary><b>Linux</b> — x64</summary>
+
+| Build | Download | Size |
+| --- | --- | --- |
+| x64 · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`cogwheel-ofx-linux-x86_64.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-ofx-linux-x86_64.zip) | 1.1 MB |
+
+</details>
+
+All builds, checksums and release notes: [github.com/stoatworks-labs/cogwheel/releases](https://github.com/stoatworks-labs/cogwheel/releases).
+
+The Windows builds are unsigned, so SmartScreen warns once.
+
 <!-- downloads:end -->
 
 ## The one idea
