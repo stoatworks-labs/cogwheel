@@ -22,7 +22,7 @@ evaluates a curve.** Set the two tooth counts and the figure follows.
 > still unconfirmed is narrower: the OpenFX build has not been driven over a clip inside Resolve,
 > so its CPU renderer is proven to run and not yet proven to match the GPU one pixel for pixel.
 >
-> Released at **v0.1.0**.
+> Released at **v0.2.0**.
 >
 > This codebase was created with AI assistance, directed and reviewed by a human author.
 
@@ -60,6 +60,30 @@ two integers.
 | **Wet Trail** | Not a drawing: a trail. A fibre tip against a two-second fade. |
 | **Chalkboard** | Graphite, a heavy tooth and a wide soft nib, printed as a negative. |
 | **Show the Gears** | The machine on screen — ring, wheel, arm and pen — cranked slowly. |
+
+### Keeping a look of your own
+
+The presets are fixed — Resolume gives a plugin no way to add an entry to that dropdown
+while it is running, or to remember one between sessions. So there is no "save preset"
+button, and there cannot be one.
+
+What there is, new in v0.2.0, is **Export XML**, next to the dropdown. It writes every
+control's current value to a timestamped file:
+
+    ~/Documents/cogwheel/cogwheel-20260901-152822.xml
+
+Each line carries both the number the plugin stores and the readable version of it, so the
+file is worth reading as well as keeping:
+
+```xml
+<parameter id="1" name="Ring Teeth" type="integer" value="96.000000" display="96t - 24 lobes"/>
+<parameter id="8" name="Speed" type="standard" value="0.737000" display="1.63 turns/s"/>
+```
+
+It is a record, not a recall — nothing loads it back. Use it to keep a look you like, to
+send one to somebody, or to read the numbers off and type them in again. The full path is
+written to the diagnostics log each time, because sixteen characters of parameter display
+is not room for one.
 
 Moving any control a preset covers drops the dropdown back to **Custom**. That is the preset
 letting go, not an error.
@@ -163,13 +187,22 @@ which is what paper does.
 
 ## Cranking, and syncing to the music
 
-**Crank** is turns of the ring per second, and the display tells you how long a figure will take
-at that rate.
+**Speed** is turns of the ring per second.
+
+> **Renamed in v0.2.0.** This control was called **Crank** in v0.1.0. Every other plugin in
+> the range calls it Speed, so it now does too. Two things follow, and both bite silently:
+> a composition saved against v0.1.0 loses whatever Crank was set to and opens at the
+> default, and any OSC or MIDI mapping pointing at "Crank" stops arriving. Re-point the
+> mapping and re-save the composition once, and that is the end of it.
 
 **Sync** overrides it: choose 1, 2, 4 or 8 bars and the figure is given that many bars to
 complete, whatever this particular train's turn count is. So a thirteen-turn figure and a
 one-turn figure both land on the bar line together. That is the only sensible reading of "one
 figure per phrase".
+
+**New Sheet** throws the drawing away and starts again. It sits at the very top of the
+parameter list, above every group, so it is always in reach — clearing the paper is the one
+thing you want mid-show and it used to be folded away inside the Crank group.
 
 **Detail** is how finely the pen path is walked — 360, 1440 or 5760 steps a turn. It is a cost
 dial with a visible symptom: at *Draft* a big figure is faintly polygonal. It does **not** change
