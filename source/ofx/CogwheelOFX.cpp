@@ -665,6 +665,14 @@ struct Decl
 	{ id, Kind::Absent, nullptr, nullptr, nullptr, 0.0f, 0.0f, 1.0f, nullptr, 0, nullptr }
 
 const Decl kDecls[] = {
+	//--- Always visible ----------------------------------------------------
+	// First and ungrouped, matching the FFGL panel. See PT_RESET in Controls.h.
+	{ PT_RESET, Kind::Button, "newSheet", "New Sheet",
+	  "Throw the drawing away and start again. In Resolume this wipes a free-running "
+	  "sheet; here the drawing at a frame is decided by the frame, so it is a restart "
+	  "of the replay and produces the same picture.",
+	  0.0f, 0.0f, 1.0f, nullptr, 0, nullptr },
+
 	//--- Gears -------------------------------------------------------------
 	COUNTG( PT_RING, "ringTeeth", "Ring Teeth", 96.0f, 12.0f, 360.0f,
 	        "How many teeth the fixed ring has. This and Wheel Teeth are the whole "
@@ -700,11 +708,6 @@ const Decl kDecls[] = {
 	        "How finely the pen path is walked: 360, 1440 or 5760 steps a turn. A cost "
 	        "dial with a visible symptom -- at Draft a big figure is faintly polygonal. "
 	        "It does not change how much ink goes on the sheet." ),
-	{ PT_RESET, Kind::Button, "newSheet", "New Sheet",
-	  "Throw the drawing away and start again. In Resolume this wipes a free-running "
-	  "sheet; here the drawing at a frame is decided by the frame, so it is a restart "
-	  "of the replay and produces the same picture.",
-	  0.0f, 0.0f, 1.0f, nullptr, 0, nullptr },
 	COUNTP( PT_SEED, "seed", "Seed", 1.0f, 1.0f, 9999.0f,
 	        "Which stack of layers, and where the gears skip." ),
 
@@ -817,6 +820,11 @@ const Decl kDecls[] = {
 	         "A whole machine in one gesture. Editing anything a preset covers falls "
 	         "back to Custom.",
 	         "Preset" ),
+	{ PT_EXPORT, Kind::Button, "exportXml", "Export XML",
+	  "Write every control's current value to an XML file, so a look can be kept, "
+	  "read and sent to somebody else. Resolve has its own preset system, so this is "
+	  "here mainly to match the FFGL build and to produce a file the two share.",
+	  0.0f, 0.0f, 1.0f, nullptr, 0, nullptr },
 };
 
 static_assert( sizeof( kDecls ) / sizeof( kDecls[ 0 ] ) == PT_ABOUT_TEXT,

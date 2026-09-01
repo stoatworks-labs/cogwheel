@@ -61,6 +61,7 @@ add_library(cogwheel_core OBJECT
     source/Cogwheel.h               source/Cogwheel.cpp
     source/Controls.h               source/Controls.cpp
     source/Presets.h
+    source/Config.h                 source/Config.cpp
     source/Diag.h                   source/Diag.cpp
     source/StoatworksAbout.h        source/StoatworksAboutParams.h
     source/StoatworksAboutLinks.h

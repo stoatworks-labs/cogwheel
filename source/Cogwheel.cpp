@@ -1,5 +1,6 @@
 #include "Cogwheel.h"
 
+#include "Config.h"
 #include "Diag.h"
 #include "Presets.h"
 #include "StoatworksAbout.h"
@@ -96,6 +97,12 @@ void CogwheelPlugin::declareParameters()
 			SetParamElementInfo( id, i, names[ i ], static_cast< float >( i ) );
 	};
 
+	// -- Always visible ------------------------------------------------------
+	//
+	// Declared first and left out of every group, so no disclosure triangle can
+	// hide it. See the note on PT_RESET in Controls.h.
+	SetParamInfo( PT_RESET, "New Sheet", FF_TYPE_EVENT, false );
+
 	// -- The gear train ------------------------------------------------------
 	//
 	// Integers with real ranges, which is the whole plugin. The STANDARD clamp
@@ -115,7 +122,6 @@ void CogwheelPlugin::declareParameters()
 	option( PT_SYNC, "Sync", kSyncCount, kSyncNames );
 	standard( PT_RATE, "Speed" );
 	option( PT_DETAIL, "Detail", kDetailCount, kDetailNames );
-	SetParamInfo( PT_RESET, "New Sheet", FF_TYPE_EVENT, false );
 	SetParamInfo( PT_SEED, "Seed", FF_TYPE_INTEGER, 1.0f );
 	SetParamRange( PT_SEED, 1.0f, 9999.0f );
 
@@ -178,6 +184,9 @@ void CogwheelPlugin::declareParameters()
 			                     static_cast< float >( i + 1 ) );
 	}
 
+	// -- Export --------------------------------------------------------------
+	SetParamInfo( PT_EXPORT, "Export XML", FF_TYPE_EVENT, false );
+
 	// -- Groups --------------------------------------------------------------
 	//
 	// SetParamGroup collapses RUNS of consecutive ids, so these have to match
@@ -197,7 +206,7 @@ void CogwheelPlugin::declareParameters()
 	group( PT_ZOOM, PT_CENTRE_Y, "Framing" );
 	group( PT_GEARS, PT_GEAR_B, "Overlay" );
 	group( PT_MIX, PT_MIX, "Output" );
-	group( PT_PRESET, PT_PRESET, "Preset" );
+	group( PT_PRESET, PT_EXPORT, "Preset" );
 
 	// -- About ---------------------------------------------------------------
 	SetParamInfo( PT_ABOUT_TEXT, "About", FF_TYPE_TEXT, stoatworks::about::defaultText() );
@@ -328,6 +337,16 @@ FFResult CogwheelPlugin::SetFloatParameter( unsigned int index, float value )
 			clearRequested = true;
 		}
 		params[ PT_RESET ] = value;
+		return FF_SUCCESS;
+	}
+
+	if( index == PT_EXPORT )
+	{
+		//A rising edge, exactly like New Sheet above: a held event would write a
+		//file per frame.
+		if( value > 0.5f && params[ PT_EXPORT ] <= 0.5f )
+			ExportConfig();
+		params[ PT_EXPORT ] = value;
 		return FF_SUCCESS;
 	}
 
@@ -611,12 +630,80 @@ char* CogwheelPlugin::GetParameterDisplay( unsigned int index )
 		else
 			std::snprintf( buffer, sizeof( buffer ), "%d figures", resolved.crank.layers );
 		break;
+	case PT_EXPORT:
+		//"ready" until it has been pressed, then the outcome. 16 characters is
+		//not room for a path, which is why the path goes in the log.
+		std::snprintf( buffer, sizeof( buffer ), "%s", exportNote.c_str() );//failed - see log = 16
+		break;
 	default:
 		return PlainDisplay( index );
 	}
 
 	displayValue = buffer;
 	return const_cast< char* >( displayValue.c_str() );
+}
+
+void CogwheelPlugin::ExportConfig()
+{
+	std::vector< config::Row > rows;
+	rows.reserve( PT_EXPORT );
+
+	// Everything an operator can set, and nothing they cannot. The About block
+	// is excluded on purpose: a text line and four buttons that open a browser
+	// are not configuration, and reading a button's value is meaningless.
+	for( unsigned int id = 0; id < PT_ABOUT_TEXT; ++id )
+	{
+		config::Row row;
+		row.id = id;
+
+		const char* name = GetParamName( id );
+		row.name         = name != nullptr ? name : "";
+		row.value        = params[ id ];
+
+		switch( GetParamType( id ) )
+		{
+			case FF_TYPE_BOOLEAN: row.type = "boolean"; break;
+			case FF_TYPE_EVENT:   row.type = "event"; break;
+			case FF_TYPE_INTEGER: row.type = "integer"; break;
+			case FF_TYPE_OPTION:  row.type = "option"; break;
+			case FF_TYPE_TEXT:    row.type = "text"; break;
+			case FF_TYPE_RED:
+			case FF_TYPE_GREEN:
+			case FF_TYPE_BLUE:    row.type = "colour"; break;
+			default:              row.type = "standard"; break;
+		}
+
+		// The display is the human half of the row -- "96t - 5 lobes" says more
+		// about a machine than 0.234 does. Skipped for the export button itself,
+		// whose display is about the export that has not happened yet.
+		if( id != PT_EXPORT )
+		{
+			const char* display = GetParameterDisplay( id );
+			row.display         = display != nullptr ? display : "";
+		}
+
+		rows.push_back( std::move( row ) );
+	}
+
+	const int active = Option( params[ PT_PRESET ], 1 + presets::kCount );
+	const std::string preset =
+		active >= 1 && active <= presets::kCount ? presets::kPresets[ active - 1 ].name : "Custom";
+
+	std::string path;
+	std::string error;
+	if( config::Write( rows, preset, path, error ) )
+	{
+		exportNote = "saved";
+		// The path is the whole point of logging this. An operator presses a
+		// button, the panel says "saved", and without this line there is nothing
+		// anywhere that says WHERE -- which is the same as not having saved it.
+		diag::info( "configuration exported to " + path );
+	}
+	else
+	{
+		exportNote = "failed - see log";
+		diag::error( "configuration export failed: " + error );
+	}
 }
 
 char* CogwheelPlugin::PlainDisplay( unsigned int index )
