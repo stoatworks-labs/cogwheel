@@ -76,6 +76,8 @@ SKIP = {
     "New Sheet": "an event whose whole effect is to start the drawing again, "
                  "which at frame zero is what it was already doing",
     "Preset": "a whole machine; every other row here is one of its columns",
+    "Export XML": "writes a file and touches no pixel -- the sweep asks whether a "
+                  "control changes the DRAWING, and this one deliberately does not",
 }
 
 # The world every sweep starts in. The crank is wound well past the default so

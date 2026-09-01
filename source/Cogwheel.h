@@ -90,6 +90,15 @@ public:
 	/// from `cgtest --list` is a segfault, not a blank column.
 	char* PlainDisplay( unsigned int index );
 
+	/// Write every control's current value to an XML file. #9.
+	///
+	/// Never throws and never fails loudly: this runs on the host's thread from
+	/// inside a parameter set, and a plugin that takes Resolume down because a
+	/// folder was read-only is worse than one that quietly does not export. The
+	/// outcome goes to `exportNote`, which the panel shows, and the path goes to
+	/// the log, which is the only place a full path fits.
+	void ExportConfig();
+
 	FFResult SetTextParameter( unsigned int index, const char* value ) override;
 	char* GetTextParameter( unsigned int index ) override;
 	FFResult SetTime( double time ) override;
@@ -131,6 +140,10 @@ private:
 	/// The host is handed a bare pointer for a display value and for the About
 	/// block, so both strings have to outlive the call that built them.
 	std::string displayValue;
+
+	/// What the Export XML button shows: "ready" until pressed, then the
+	/// outcome. Sixteen characters is not room for a path -- see ExportConfig.
+	std::string exportNote = "ready";
 	std::string aboutText;
 
 	bool glReady        = false;

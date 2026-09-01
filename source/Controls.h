@@ -28,8 +28,20 @@ namespace cogwheel
 */
 enum ParamId : unsigned int
 {
+	// -- Always visible ------------------------------------------------------
+	//
+	// Ungrouped and first, so it cannot be collapsed out of sight. It lived in
+	// the Crank group and was hidden whenever that group was folded, which is
+	// what #6 reports: clearing the paper is the one thing an operator wants
+	// mid-show and it was behind a disclosure triangle.
+	//
+	// Moving it costs nothing. A saved composition matches parameters BY NAME
+	// -- see the note above -- so every renumbered id below still lands on the
+	// right control.
+	PT_RESET = 0,
+
 	// -- The gear train ------------------------------------------------------
-	PT_RING = 0,
+	PT_RING,
 	PT_WHEEL,
 	PT_MESH,
 	PT_PEN,
@@ -40,7 +52,6 @@ enum ParamId : unsigned int
 	PT_SYNC,
 	PT_RATE,
 	PT_DETAIL,
-	PT_RESET,
 	PT_SEED,
 
 	// -- Slip ----------------------------------------------------------------
@@ -94,6 +105,13 @@ enum ParamId : unsigned int
 	// puts it, and declared AFTER the real controls so that adding a preset
 	// cannot shift a saved composition's parameter numbering.
 	PT_PRESET,
+
+	// Writes every control's current value to an XML file, next to the Preset
+	// dropdown because that is where somebody goes looking for "keep this
+	// one". It is an EXPORT and not a preset slot: FFGL has no mechanism for a
+	// user-defined preset list, which is what #9 asked for -- the dropdown's
+	// elements are fixed at declaration and the host owns the panel.
+	PT_EXPORT,
 
 	// -- The Stoatworks About block ------------------------------------------
 	//
