@@ -1317,6 +1317,58 @@ int runList( bool namesOnly )
 				++over;
 			}
 		}
+		//The SAME 16-character limit applies to the parameter DISPLAY string:
+		//FF_GET_PARAMETER_DISPLAY hands the host a 16-byte buffer, and the SDK's
+		//own default writes into `static char s_DisplayValue[ 16 ]`. Nothing
+		//plugin-side ever notices -- the plugin's buffer is 96, snprintf
+		//succeeds, and this tool used to print the whole string -- so it shipped,
+		//and an operator saw "0.63% of the she". Issue #5.
+		//
+		//A display string is a function of the VALUES, not of the parameter, so
+		//it has to be swept rather than read once at the defaults.
+		std::printf( "\ndisplay strings longer than 16 characters:\n\n" );
+
+		std::vector< float > defaults( PT_COUNT );
+		for( unsigned int id = 0; id < PT_COUNT; ++id )
+			defaults[ id ] = plugin.GetFloatParameter( id );
+
+		//Keyed by PARAMETER, holding its widest offender. Keying by the rendered
+		//string instead reports one row per numeric value -- "1.38% of the
+		//sheet", "1.45% of the sheet", ... -- which was 71 rows for what is
+		//really three broken formats.
+		std::map< unsigned int, std::string > tooLong;
+
+		//Strictly below PT_ABOUT_TEXT. The About buttons OPEN A WEB BROWSER when
+		//their value is set -- a sweep would do it a few hundred times.
+		for( unsigned int swept = 0; swept < PT_ABOUT_TEXT; ++swept )
+		{
+			for( int step = 0; step <= 100; ++step )
+			{
+				plugin.SetFloatParameter( swept, static_cast< float >( step ) / 100.0f );
+
+				for( unsigned int id = 0; id < PT_ABOUT_TEXT; ++id )
+				{
+					const char* display = plugin.GetParameterDisplay( id );
+					if( display == nullptr )
+						continue;
+
+					const size_t length = std::strlen( display );
+					if( length > 16 && length > tooLong[ id ].size() )
+						tooLong[ id ] = display;
+				}
+			}
+			plugin.SetFloatParameter( swept, defaults[ swept ] );
+		}
+
+		for( const auto& entry : tooLong )
+		{
+			const char* name = plugin.GetParamName( entry.first );
+			std::printf( "  %-3u  %-18s %-24s %zu\n", entry.first, name ? name : "",
+			             entry.second.c_str(), entry.second.size() );
+		}
+
+		over += static_cast< int >( tooLong.size() );
+
 		std::printf( "\n  %d over the limit\n", over );
 		return over == 0 ? 0 : 1;
 	}
