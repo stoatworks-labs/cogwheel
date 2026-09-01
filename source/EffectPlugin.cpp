@@ -31,7 +31,7 @@ static CFFGLPluginInfo PluginInfo(
 	2,                                                    // API major version number
 	1,                                                    // API minor version number
 	0,                                                    // Plugin major version number
-	1,                                                    // Plugin minor version number
+	2,                                                    // Plugin minor version number
 	FF_EFFECT,                                            // Plugin type
 	"Your clip, drawn with a Spirograph.\n\nInk from Clip makes the pen pick up whatever colour of the footage it is passing over, so the drawing is built out of the clip's own light rather than laid on top of it. Paper from Clip puts the footage behind the ink instead, as the sheet.\n\nHonest expectation: Ink from Clip is excellent on footage with large areas of strong colour and turns to mud on anything busy. That is what a pen does to a picture, not a setting.\n\nInk is subtractive, so it can only ever darken the clip. For a pale line on a dark ground, set Print to Negative.",// Plugin description
 	"Cogwheel FFGL effect"                                // About

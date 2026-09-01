@@ -37,7 +37,7 @@ static CFFGLPluginInfo PluginInfo(
 	2,                                                       // API major version number
 	1,                                                       // API minor version number
 	0,                                                       // Plugin major version number
-	1,                                                       // Plugin minor version number
+	2,                                                       // Plugin minor version number
 	FF_SOURCE,                                               // Plugin type
 	"A Spirograph: a toothed ring, a wheel rolling in mesh with it, and a pen in one of the wheel's holes.\n\nNothing here evaluates a curve. Set the two tooth counts and the figure follows -- 96 and 32 mesh three to one, so that one closes in a single turn with three lobes, while 96 and 31 take thirty-one turns and have ninety-six. The Ring and Wheel controls tell you which you are about to get.\n\nInk is subtractive, so a second pen crossing the first darkens it the way it does on paper. Layers draws a stack of figures, lifting the pen and changing hole and colour each time one closes, which is how the multicoloured drawing everybody remembers is actually made.\n\nA closed figure retraces its own line for ever. Creep is a mesh very slightly out of true, and it is what keeps a drawing growing -- as it does on the real thing.\n\nStart from a Preset, at the bottom. Show Gears puts the machine on screen.",// Plugin description
 	"Cogwheel FFGL source"                                   // About
