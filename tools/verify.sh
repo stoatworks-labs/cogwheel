@@ -259,14 +259,16 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-head_ "Parameter names"
+head_ "Parameter names and displays"
 # ---------------------------------------------------------------------------
-# FFGL truncates a name at sixteen characters, in the host, silently. Anything
-# over is a control whose label an operator cannot read.
+# FFGL truncates at sixteen characters, in the host, silently -- and it does it
+# to the parameter's NAME and to its displayed VALUE alike. Anything over is a
+# control an operator cannot read: issue #5 was a Nib reading "0.63% of the she".
+# The display is a function of the values, so cgtest sweeps it.
 if ./build/cgtest --names >/tmp/cogwheel-names.log 2>&1; then
-    ok "every parameter name fits FFGL's 16 characters"
+    ok "every parameter name and display fits FFGL's 16 characters"
 else
-    bad "a parameter name is too long -- see /tmp/cogwheel-names.log"
+    bad "a parameter name or display is too long -- see /tmp/cogwheel-names.log"
     cat /tmp/cogwheel-names.log
 fi
 

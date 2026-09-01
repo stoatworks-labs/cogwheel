@@ -524,6 +524,16 @@ char* CogwheelPlugin::GetParameterDisplay( unsigned int index )
 	const Train train       = crank.CurrentTrain( resolved.crank );
 	const Geometry g        = Solve( train );
 
+	// ☠️ EVERY STRING BELOW MUST RENDER IN 16 CHARACTERS OR FEWER, AT ITS
+	// WIDEST VALUE. FF_GET_PARAMETER_DISPLAY hands the host a 16-byte buffer --
+	// the SDK's own default writes into `static char s_DisplayValue[ 16 ]` --
+	// and Resolume copies 16 bytes with no terminator. Nothing plugin-side ever
+	// notices: this buffer is 96, snprintf succeeds, the harness prints the
+	// whole string, and only the operator sees it cut. That is how "0.63% of
+	// the sheet" reached a release reading "0.63% of the she".
+	//
+	// Widest values, for checking a new string against: ring 360, wheel 240,
+	// lobes 360, turns 512, holes 12, layers 16.
 	char buffer[ 96 ] = {};
 	switch( index )
 	{
@@ -532,31 +542,36 @@ char* CogwheelPlugin::GetParameterDisplay( unsigned int index )
 		//the whole plugin and it is otherwise invisible: an operator dragging
 		//either of these is asking "what shape is this going to be?", and the
 		//lobe count and the turn count are the answer.
-		std::snprintf( buffer, sizeof( buffer ), "%d teeth - %d lobes",
-		               train.ringTeeth, g.lobes );
+		std::snprintf( buffer, sizeof( buffer ), "%dt - %d lobes",
+		               train.ringTeeth, g.lobes );//360t - 360 lobes = 16
 		break;
 	case PT_WHEEL:
-		std::snprintf( buffer, sizeof( buffer ), "%d teeth - closes in %d turn%s",
-		               train.wheelTeeth, g.turnsToClose, g.turnsToClose == 1 ? "" : "s" );
+		//"closes" rather than "closes in N turns": the verb is what carries the
+		//meaning and the sentence does not fit.
+		std::snprintf( buffer, sizeof( buffer ), "%dt closes %d",
+		               train.wheelTeeth, g.turnsToClose );//240t closes 512 = 15
 		break;
 	case PT_PEN:
 		if( resolved.crank.snapPenToHoles )
 			std::snprintf( buffer, sizeof( buffer ), "hole %d of %d",
 			               NearestHoleIndex( train.penFraction ), kHoleCount );
 		else
-			std::snprintf( buffer, sizeof( buffer ), "%.0f%% of the wheel",
-			               100.0 * train.penFraction );
+			std::snprintf( buffer, sizeof( buffer ), "%.0f%% of wheel",
+			               100.0 * train.penFraction );//100% of wheel = 13
 		break;
 	case PT_RATE:
 		if( resolved.crank.sync != Sync::Free )
 			std::snprintf( buffer, sizeof( buffer ), "set by Sync" );
 		else
-			std::snprintf( buffer, sizeof( buffer ), "%.2f turns/s - %.1f s a figure",
-			               resolved.crank.turnsPerSecond,
-			               static_cast< double >( g.turnsToClose ) / std::max( 1.0e-3, resolved.crank.turnsPerSecond ) );
+			//The seconds-a-figure figure went with the truncation: at a slow
+			//crank it runs to five digits, and no phrasing of both numbers fits
+			//in 16. The rate is the one the slider is actually setting.
+			std::snprintf( buffer, sizeof( buffer ), "%.2f turns/s",
+			               resolved.crank.turnsPerSecond );//10.00 turns/s = 13
 		break;
 	case PT_CREEP:
-		std::snprintf( buffer, sizeof( buffer ), "%.2f teeth a turn", resolved.crank.creepTeethPerTurn );
+		std::snprintf( buffer, sizeof( buffer ), "%.2f teeth/turn",
+		               resolved.crank.creepTeethPerTurn );//1.00 teeth/turn = 15
 		break;
 	case PT_SKIP:
 		if( resolved.crank.skipChancePerTurn <= 0.0 )
@@ -567,12 +582,12 @@ char* CogwheelPlugin::GetParameterDisplay( unsigned int index )
 	case PT_NIB:
 		//As a fraction of the sheet's height, which is the only measure that
 		//means the same thing at every output resolution.
-		std::snprintf( buffer, sizeof( buffer ), "%.2f%% of the sheet",
-		               100.0f * resolved.render.nibSigma * 0.5f );
+		std::snprintf( buffer, sizeof( buffer ), "%.2f%% of sheet",
+		               100.0f * resolved.render.nibSigma * 0.5f );//2.00% of sheet = 14
 		break;
 	case PT_FADE:
 		if( resolved.render.fadeSeconds <= 0.0f )
-			std::snprintf( buffer, sizeof( buffer ), "never - it is paper" );
+			std::snprintf( buffer, sizeof( buffer ), "never - paper" );
 		else
 			std::snprintf( buffer, sizeof( buffer ), "%.0f s", resolved.render.fadeSeconds );
 		break;
@@ -581,15 +596,18 @@ char* CogwheelPlugin::GetParameterDisplay( unsigned int index )
 		//value of the display here: a number that means "per millimetre of
 		//line" and a number that means "per second" are not comparable, and the
 		//operator has just switched between them.
+		//"a unit"/"a second" rather than "per unit drawn"/"per second": the
+		//distinction is the whole point of the display and survives the
+		//shortening, where "per unit drawn" did not fit at all.
 		std::snprintf( buffer, sizeof( buffer ), "%.3f %s", resolved.render.flow,
-		               resolved.render.perDistance ? "per unit drawn" : "per second" );
+		               resolved.render.perDistance ? "a unit" : "a second" );//999.999 a second = 16
 		break;
 	case PT_ZOOM:
 		std::snprintf( buffer, sizeof( buffer ), "%.2fx", resolved.render.scale );
 		break;
 	case PT_LAYERS:
 		if( resolved.crank.layers <= 1 )
-			std::snprintf( buffer, sizeof( buffer ), "1 - the pen never lifts" );
+			std::snprintf( buffer, sizeof( buffer ), "1 - never lifts" );
 		else
 			std::snprintf( buffer, sizeof( buffer ), "%d figures", resolved.crank.layers );
 		break;
