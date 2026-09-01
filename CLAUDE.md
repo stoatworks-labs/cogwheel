@@ -110,9 +110,12 @@ Disable with `-DBUILD_OFX=OFF`.
 - ⚠️ **`~/Library/OFX/Plugins` is silently ignored by Resolve.** The bundle must
   be in `/Library/OFX/Plugins` (needs admin) or reached by `OFX_PLUGIN_PATH`. An
   OFX plugin in the user path looks exactly like a broken one.
-- **No release, no browser demo.** CI runs (the Windows job builds the `.dll`
-  that was tested on win-lab); `release.yml` has never executed and
-  `wrangler.toml` does not exist.
+- **No browser demo.** `wrangler.toml` does not exist, so there is nothing to
+  deploy at `cogwheel-demo.stoatworks-labs.com` and step 1c of the release
+  checklist does not apply here. There IS a release: v0.1.0 shipped 2026-08-27
+  and v0.2.0 follows it. The line that used to stand here said "no release",
+  which was true when it was written and was still being read as true a week
+  after the first tag -- it is what made a rename look free when it was not.
 - **The classic set's tooth counts in `machine/Wheels.cpp` are unverified.**
   They are what the published part lists give and have not been checked against
   a set in hand; `Ring` and `Wheel` are free integers precisely so that nothing
