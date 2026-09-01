@@ -113,7 +113,7 @@ void CogwheelPlugin::declareParameters()
 
 	// -- The crank -----------------------------------------------------------
 	option( PT_SYNC, "Sync", kSyncCount, kSyncNames );
-	standard( PT_RATE, "Crank" );
+	standard( PT_RATE, "Speed" );
 	option( PT_DETAIL, "Detail", kDetailCount, kDetailNames );
 	SetParamInfo( PT_RESET, "New Sheet", FF_TYPE_EVENT, false );
 	SetParamInfo( PT_SEED, "Seed", FF_TYPE_INTEGER, 1.0f );
