@@ -82,7 +82,7 @@ SKIP = {
 # that a few seconds of rendering is several complete figures -- which is what
 # makes the layer controls, the pen set and the wipe visible at all.
 BASE = {
-    "Crank": 0.90,
+    "Speed": 0.90,
     "Layers": 4,
     "Show Gears": 0.0,
 }
@@ -90,7 +90,7 @@ BASE = {
 # 96/32 meshes three to one and closes in a SINGLE turn, so at this crank a
 # figure completes about five times a second. Anything that only happens when a
 # figure closes is swept on it.
-FAST_CLOSE = {"Wheel Teeth": 32, "Crank": 0.90}
+FAST_CLOSE = {"Wheel Teeth": 32, "Speed": 0.90}
 
 CONTEXT = {
     # -- gears -----------------------------------------------------------
@@ -101,7 +101,7 @@ CONTEXT = {
     "Snap to Holes": {"Pen Hole": 0.62},
 
     # -- the crank -------------------------------------------------------
-    # Sync overrides the Crank slider entirely, so at Free it is whatever BASE
+    # Sync overrides the Speed slider entirely, so at Free it is whatever BASE
     # says and at 8 Bars it is derived from the tempo. Both draw; they draw
     # different amounts.
     "Sync": {},

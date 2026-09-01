@@ -50,7 +50,7 @@
 0    Snap to Set=1
 0    Snap to Holes=1
 0    Sync=0
-0    Crank=0.466         # 0.25 turns/s -- slow enough to watch the wheel roll
+0    Speed=0.466         # 0.25 turns/s -- slow enough to watch the wheel roll
 0    Detail=1
 0    Seed=1
 0    Creep=0.04
@@ -78,7 +78,7 @@
 
 # ------------------------------------------------- 2. the gears leave, the line stays
 10..14  Show Gears=0.9..0.0
-12..16  Crank=0.466..0.667      # 0.25 -> 1 turn/s, so the figure closes on schedule
+12..16  Speed=0.466..0.667      # 0.25 -> 1 turn/s, so the figure closes on schedule
 
 # ------------------------------------------------------------------ 3. the stack
 17.0 Layers=4
@@ -86,11 +86,11 @@
 17.0 Wipe Sheet=1
 17.0 Ring Teeth=96
 17.0 Wheel Teeth=52            # gcd 4 -> 24 lobes, 13 turns
-17.0 Crank=0.737               # 1.63 turns/s: a figure every 8 s
+17.0 Speed=0.737               # 1.63 turns/s: a figure every 8 s
 17.0 Size=0.610
 17.4 New Sheet=1
 17.6 New Sheet=0
-26..28 Crank=0.737..0.826      # 3 turns/s, so all four layers land inside the section
+26..28 Speed=0.737..0.826      # 3 turns/s, so all four layers land inside the section
 
 # -------------------------------------------------------- 4. two integers, and a stop
 30.0 Wheel Teeth=32            # 3:1 exactly -- three lobes, closes in ONE turn
@@ -99,7 +99,7 @@
 30.0 On Closing=3
 30.0 Creep=0                   # a mesh exactly true. It draws once and then STOPS.
 30.0 Pens=4                    # graphite
-30.0 Crank=0.667
+30.0 Speed=0.667
 30.0 Detail=2
 30.4 New Sheet=1
 30.6 New Sheet=0
@@ -108,7 +108,7 @@
 # only honest way to show it.
 
 36..40 Creep=0..0.5            # the mesh goes out of true; it never settles again
-40..44 Crank=0.667..0.826
+40..44 Speed=0.667..0.826
 
 # ------------------------------------------------------------ 5. no common factor
 45.0 Ring Teeth=105
@@ -120,7 +120,7 @@
 45.0 On Closing=2
 45.0 Flow=0.492
 45.0 Nib=0.287
-45.0 Crank=0.900               # 5 turns/s -- the web has to arrive inside the shot
+45.0 Speed=0.900               # 5 turns/s -- the web has to arrive inside the shot
 45.0 Detail=2
 45.4 New Sheet=1
 45.6 New Sheet=0
@@ -139,7 +139,7 @@
 52.0 On Closing=3
 52.0 Fade=0.855                # 2 s -- the one control that is not something the machine does
 52.0 Flow=0.778
-52.0 Crank=0.900
+52.0 Speed=0.900
 52.0 Creep=0.03
 52.4 New Sheet=1
 52.6 New Sheet=0
@@ -153,7 +153,7 @@
 57.0 Pens=1
 57.0 Layers=2
 57.0 On Closing=0
-57.0 Crank=0.900
+57.0 Speed=0.900
 57.0 Flow=0.625
 57.0 Nib=0.398
 57.0 Size=0.596

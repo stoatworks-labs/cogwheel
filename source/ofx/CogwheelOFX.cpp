@@ -70,7 +70,7 @@
 ///
 /// - **No tempo.** OFX carries no transport tempo, so `Resolve` is handed a
 ///   fixed 120 bpm. The Sync dropdown therefore works, and works off 120 rather
-///   than off the edit. Crank is the control that behaves identically in both
+///   than off the edit. Speed is the control that behaves identically in both
 ///   builds.
 /// - **Ink from Clip is exact on a linear render and approximate on a seek.**
 ///   The pen picks up the colour of the clip it is passing over, which needs
@@ -689,12 +689,12 @@ const Decl kDecls[] = {
 
 	//--- Crank -------------------------------------------------------------
 	OPTIONG( PT_SYNC, "sync", "Sync", 0.0f, kSyncNames, kSyncCount,
-	         "Free runs at the Crank rate. The bar settings give the figure that many "
+	         "Free runs at the Speed setting. The bar settings give the figure that many "
 	         "bars to complete in, whatever this train's turn count is -- so two "
 	         "different wheels finish together. OpenFX carries no transport tempo, so "
 	         "this build works off a fixed 120 bpm.",
 	         "Crank" ),
-	SLIDER( PT_RATE, "crank", "Crank", 0.737f,
+	SLIDER( PT_RATE, "crank", "Speed", 0.737f,
 	        "Turns of the ring per second, 0.01 to 10, exponentially. Free mode only." ),
 	OPTION( PT_DETAIL, "detail", "Detail", 1.0f, kDetailNames, kDetailCount,
 	        "How finely the pen path is walked: 360, 1440 or 5760 steps a turn. A cost "
@@ -1149,7 +1149,7 @@ private:
 			//Each step reads the controls at its OWN time rather than holding
 			//the requested frame's values through the replay. That costs a few
 			//dozen host parameter reads a frame and it buys the thing the
-			//plugin is about: a keyframed Crank arrives at this frame having
+			//plugin is about: a keyframed Speed arrives at this frame having
 			//actually been cranked at the rates the operator drew.
 			readAll( static_cast< double >( frame ) );
 			resolved = Resolve( params, 120.0, over );
