@@ -131,6 +131,11 @@ CONTEXT = {
     # -- the paper -------------------------------------------------------
     # A fade needs time to have faded something.
     "Fade": {"_frames": 400},
+    # And this one needs a fade to be acting on, plus a figure that has actually
+    # closed for the previous one to fade as a unit -- with Fade at its default
+    # zero the control is correctly invisible, because there is no fade to
+    # change the shape of.
+    "Fade by Figure": dict(FAST_CLOSE, **{"Fade": 0.6, "_frames": 400}),
     # Both clip controls are the effect build's alone. On the source build
     # there is no clip, and Controls.cpp forces them off rather than reading a
     # texture that is not bound.

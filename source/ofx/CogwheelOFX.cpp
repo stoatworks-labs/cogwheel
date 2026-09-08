@@ -252,6 +252,28 @@ public:
 			v *= retain;
 	}
 
+	/// Add another sheet's density into this one and leave it alone, exactly as
+	/// the GL build's compose pass does with glBlendFunc( GL_ONE, GL_ONE ).
+	/// Absorptions add, which is what makes splitting the drawing in two exact
+	/// rather than an approximation.
+	void addFrom( const Paper& other )
+	{
+		if( other.density.size() != density.size() )
+			return;
+		for( size_t i = 0; i < density.size(); ++i )
+			density[ i ] += other.density[ i ];
+	}
+
+	/// Give the memory back. The settled sheet is only allocated while Fade by
+	/// Figure is on.
+	void release()
+	{
+		w = 0;
+		h = 0;
+		density.clear();
+		density.shrink_to_fit();
+	}
+
 	int width() const { return w; }
 	int height() const { return h; }
 
@@ -417,6 +439,10 @@ void depositSegment( Paper& paper, const Step& a, const Step& b,
 struct SheetSetup
 {
 	const Paper* paper = nullptr;
+	/// The figures that have closed, when Fade by Figure is on. Null otherwise,
+	/// and summed with `paper` when it is not -- absorptions add, which is the
+	/// same arithmetic the GL build's sheet shader does with two samplers.
+	const Paper* settled = nullptr;
 
 	float aspect = 16.0f / 9.0f;
 
@@ -545,8 +571,16 @@ public:
 				    && px < s.paper->width() && py < s.paper->height() )
 				{
 					const float* density = s.paper->at( px, py );
+					const float* older   = ( s.settled != nullptr && s.settled->ready()
+					                         && px < s.settled->width() && py < s.settled->height() )
+					                       ? s.settled->at( px, py )
+					                       : nullptr;
 					for( int c = 0; c < 3; ++c )
-						drawn[ c ] = sheet[ c ] * std::exp( -std::max( density[ c ], 0.0f ) );
+					{
+						const float total = std::max( density[ c ], 0.0f )
+						                    + ( older != nullptr ? std::max( older[ c ], 0.0f ) : 0.0f );
+						drawn[ c ] = sheet[ c ] * std::exp( -total );
+					}
 				}
 				else
 				{
@@ -786,6 +820,12 @@ const Decl kDecls[] = {
 	        "How fast the drawing fades. At zero it does not, which is what paper does "
 	        "-- this is the one control in the plugin that is not something the machine "
 	        "can do, and it is here because a VJ needs the sheet to clear." ),
+	TOGGLE( PT_FADE_FIGURES, "fadeByFigure", "Fade by Figure", 0.0f,
+	        "Fade whole figures rather than the line as it is drawn. Off, the fade "
+	        "acts on the sheet every frame, so the start of a figure has faded more "
+	        "than its end and the line carries a gradient along itself. On, the figure "
+	        "being drawn does not fade at all; it joins the drawing when it closes and "
+	        "fades from then on as one object. Needs Fade above zero to mean anything." ),
 	OPTION( PT_PRINT, "print", "Print", 0.0f, kPrintNames, kPrintCount,
 	        "Ink only ever darkens paper, so a pale line on a dark ground is not "
 	        "something the machine can make. A negative of a drawing that could be "
@@ -835,7 +875,7 @@ constexpr unsigned int kPresetParamIDs[] = {
 	PT_RATE, PT_DETAIL, PT_CREEP, PT_SKIP, PT_SKIP_TEETH,
 	PT_LAYERS, PT_CHANGE, PT_WIPE,
 	PT_PEN_SET, PT_PEN_TYPE, PT_INK_R, PT_INK_G, PT_INK_B, PT_FLOW, PT_NIB, PT_SPREAD,
-	PT_PAPER_R, PT_PAPER_G, PT_PAPER_B, PT_GRAIN, PT_TOOTH, PT_FADE, PT_PRINT,
+	PT_PAPER_R, PT_PAPER_G, PT_PAPER_B, PT_GRAIN, PT_TOOTH, PT_FADE, PT_FADE_FIGURES, PT_PRINT,
 	PT_ZOOM, PT_GEARS
 };
 
@@ -1141,6 +1181,8 @@ private:
 		if( restart )
 		{
 			paper.clear();
+			settled.release();
+			settledInUse = false;
 			readAll( args.time );
 			crank.Restart( static_cast< uint32_t >(
 				std::max( 1, static_cast< int >( std::lround( params[ PT_SEED ] ) ) ) ) );
@@ -1167,11 +1209,50 @@ private:
 			if( crank.WipeRequested() )
 			{
 				paper.clear();
+				if( settledInUse )
+					settled.clear();
 				crank.ClearWipeRequest();
 			}
 
-			if( resolved.render.fadeSeconds > 0.0f )
-				paper.fade( std::exp( -static_cast< float >( frameSeconds ) / resolved.render.fadeSeconds ) );
+			//The same split the GL build makes, and for the same reason: a fade
+			//gated on the pen never runs, because the pen is down for every
+			//frame of a drawing. See render/Sheet.h.
+			const bool fading   = resolved.render.fadeSeconds > 0.0f;
+			const bool byFigure = fading && resolved.render.fadeByFigure;
+			const float retain  = fading
+			                      ? std::exp( -static_cast< float >( frameSeconds ) / resolved.render.fadeSeconds )
+			                      : 1.0f;
+
+			if( byFigure )
+			{
+				settled.ensure( outW, outH );
+				if( !settledInUse )
+				{
+					settled.clear();
+					settledInUse = true;
+				}
+
+				//Fade first, fold in second, so a figure joins the pile at full
+				//strength rather than being docked a frame on the way in.
+				settled.fade( retain );
+				if( crank.FiguresClosed() > 0 )
+				{
+					settled.addFrom( paper );
+					paper.clear();
+				}
+			}
+			else if( settledInUse )
+			{
+				//The switch has gone off. Everything settled comes back, or the
+				//drawing loses every figure that had closed.
+				paper.addFrom( settled );
+				settled.release();
+				settledInUse = false;
+			}
+			else if( fading )
+			{
+				paper.fade( retain );
+			}
 
 			DepositParams deposit;
 			deposit.flow         = resolved.render.flow;
@@ -1210,7 +1291,8 @@ private:
 		// symptom is an overlay a fraction of a turn away from the line it is
 		// supposed to be making.
 		//---------------------------------------------------------------
-		setup.paper  = &paper;
+		setup.paper   = &paper;
+		setup.settled = settledInUse ? &settled : nullptr;
 		setup.aspect = aspect;
 		for( int c = 0; c < 3; ++c )
 		{
@@ -1303,6 +1385,10 @@ private:
 	float params[ PT_COUNT ]        = {};
 
 	Paper paper;
+	/// Allocated only while Fade by Figure is on. See Sheet.h for why the
+	/// drawing has to be split in two for that to mean anything.
+	Paper settled;
+	bool settledInUse = false;
 	Crank crank;
 	std::vector< Step > steps;
 	std::vector< Run > runs;

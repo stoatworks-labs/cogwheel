@@ -83,6 +83,7 @@ enum ParamId : unsigned int
 	PT_GRAIN,
 	PT_TOOTH,
 	PT_FADE,
+	PT_FADE_FIGURES,
 	PT_PRINT,
 
 	// -- Framing -------------------------------------------------------------

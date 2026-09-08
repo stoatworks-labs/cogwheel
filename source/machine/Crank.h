@@ -131,6 +131,16 @@ public:
 	/// The figure being drawn, 0-based within the stack.
 	int Layer() const { return layer; }
 
+	/// How many figures closed during the last `Advance`. Zero in most frames,
+	/// one in the frame a figure finishes in, and more than one only if the
+	/// crank is wound fast enough to get through a whole figure inside a frame.
+	///
+	/// The renderer cannot work this out for itself, which is why it is here. A
+	/// closure ends a `Run` -- but so does running out of frame, so the run
+	/// count does not say it; and with a stack of one the pen never lifts and
+	/// the layer number never changes, so that does not say it either.
+	int FiguresClosed() const { return figuresClosed; }
+
 	/// How far through the current figure the pen is, 0..1.
 	double FigurePhase() const { return figurePhase; }
 
@@ -158,6 +168,7 @@ private:
 	double slipTeeth   = 0.0;
 	double figurePhase = 0.0;
 	int layer          = 0;
+	int figuresClosed  = 0;
 	bool wipe          = false;
 	uint32_t rng       = 1;
 	uint32_t seedUsed  = 0;

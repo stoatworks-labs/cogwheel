@@ -353,10 +353,30 @@ void main()
 // ---------------------------------------------------------------------------
 // The sheet.
 // ---------------------------------------------------------------------------
+// Add one sheet's density into another. Drawn with additive blending, which is
+// what makes this a compose and not a copy: it is used to fold the figure that
+// has just closed into the settled sheet, and absorptions add.
+const char* const kComposeFragmentBody = R"(
+in vec2 uv;
+uniform sampler2D Source;
+
+out vec4 fragColor;
+
+void main()
+{
+	//Alpha is 0, not 1. The blend is GL_ONE, GL_ONE, so whatever goes here is
+	//ADDED to the destination's alpha, and the destination's alpha is not ours
+	//to touch. The fade pass writes 1 for the opposite reason: it multiplies.
+	fragColor = vec4( max( texture( Source, uv ).rgb, vec3( 0.0 ) ), 0.0 );
+}
+)";
+
 const char* const kSheetFragmentBody = R"(
 in vec2 uv;
 
 uniform sampler2D PaperTexture;//accumulated optical density
+uniform sampler2D SettledTexture;//the figures that have closed, when fading by figure
+uniform float UseSettled;      //1 when the drawing is split across two buffers
 uniform sampler2D ClipTexture;
 uniform vec2  MaxUV;
 uniform float SheetAspect;
@@ -422,6 +442,17 @@ void main()
 	vec2 paper = vec2( ( uv.x - 0.5 ) * 2.0 * SheetAspect, ( uv.y - 0.5 ) * 2.0 );
 
 	vec3 density = max( texture( PaperTexture, uv ).rgb, vec3( 0.0 ) );
+
+	//Fading by figure splits the drawing in two: the settled sheet, which
+	//fades, and the figure being drawn, which does not. Summing them is exact
+	//rather than an approximation of the single-buffer case -- these are
+	//absorptions and absorptions add, which is the same reason the ink pass
+	//sums instead of taking a max.
+	//
+	//UseSettled is 0 in the ordinary case, where the sampler is bound to the
+	//blank texel and this multiply discards it. A branch would cost more than
+	//the tap it saves.
+	density += UseSettled * max( texture( SettledTexture, uv ).rgb, vec3( 0.0 ) );
 
 	vec3 sheet = mix( PaperColour, clip, PaperFromClip );
 
@@ -535,6 +566,12 @@ const std::string& inkFragment()
 const std::string& fadeFragment()
 {
 	static const std::string source = fragmentSource( kFadeFragmentBody );
+	return source;
+}
+
+const std::string& composeFragment()
+{
+	static const std::string source = fragmentSource( kComposeFragmentBody );
 	return source;
 }
 

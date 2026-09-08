@@ -105,6 +105,11 @@ Train Crank::CurrentTrain( const CrankParams& params ) const
 
 void Crank::completeFigure( const CrankParams& params )
 {
+	//Counted before the branch, because a figure closing is a figure closing
+	//whether or not the pen came off the paper for it. A stack of one closes
+	//just as often; it simply carries straight on into the next figure.
+	++figuresClosed;
+
 	//---------------------------------------------------------------------
 	// Whether the pen comes off the paper.
 	//
@@ -153,6 +158,7 @@ Geometry Crank::Advance( const CrankParams& params, double frameSeconds,
 {
 	steps.clear();
 	runs.clear();
+	figuresClosed = 0;
 
 	if( seedUsed != params.seed )
 		Restart( params.seed );

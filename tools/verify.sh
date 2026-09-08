@@ -279,7 +279,7 @@ head_ "The invariants"
 # closed figure stops drawing" from sentences in AGENTS.md into things a machine
 # checks.
 if [ -x build/cgtest ]; then
-    for test in closure detail rate beer liveness presets defaults hosts scale guard; do
+    for test in closure detail rate beer liveness figurefade presets defaults hosts scale guard; do
         log="/tmp/cogwheel-$test.log"
         if ./build/cgtest "--$test" >"$log" 2>&1; then
             ok "cgtest --$test"

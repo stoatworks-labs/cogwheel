@@ -183,6 +183,23 @@ both.
 not fade. It is here because a VJ needs the sheet to clear, and at zero it does not fade at all,
 which is what paper does.
 
+**Fade by Figure** decides what the fade acts on. Off — which is how it has always behaved — the
+fade acts on the sheet, every frame. Ink laid down at the start of a figure has therefore been
+fading for longer than ink laid down at its head, so the line carries a gradient along its own
+length: it is palest where the pen started and darkest where the pen is now. On, the figure being
+drawn does not fade at all. It joins the drawing at the moment it closes, and fades from then on
+as one object, so a figure is a single even weight of line and the ones behind it lift away whole.
+
+It needs **Fade** above zero to mean anything: with no fade there is nothing for it to change the
+shape of. Turning it off again does not lose anything — everything that had settled comes straight
+back onto the sheet.
+
+![Fade by Figure, off and on](fade-by-figure.png)
+
+The same machine and the same fade, at the same frame. On the left the blue figure is being drawn
+and is palest where the pen started; on the right it is one weight of line all the way round, and
+the red figure behind it has lifted away evenly rather than in a gradient.
+
 ---
 
 ## Cranking, and syncing to the music

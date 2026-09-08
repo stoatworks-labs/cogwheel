@@ -84,7 +84,7 @@ jobs:
         shell: bash
         run: |
           set -u
-          checks="closure defaults hosts detail rate beer liveness presets scale guard"
+          checks="closure defaults hosts detail rate beer liveness figurefade presets scale guard"
           for c in $checks; do
             ( ./build/cgtest --"$c" >"/tmp/cg-$c.log" 2>&1; echo $? >"/tmp/cg-$c.rc" ) &
           done

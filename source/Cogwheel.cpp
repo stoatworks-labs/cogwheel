@@ -22,7 +22,7 @@ constexpr unsigned int kPresetParamIDs[] = {
 	PT_RATE, PT_DETAIL, PT_CREEP, PT_SKIP, PT_SKIP_TEETH,
 	PT_LAYERS, PT_CHANGE, PT_WIPE,
 	PT_PEN_SET, PT_PEN_TYPE, PT_INK_R, PT_INK_G, PT_INK_B, PT_FLOW, PT_NIB, PT_SPREAD,
-	PT_PAPER_R, PT_PAPER_G, PT_PAPER_B, PT_GRAIN, PT_TOOTH, PT_FADE, PT_PRINT,
+	PT_PAPER_R, PT_PAPER_G, PT_PAPER_B, PT_GRAIN, PT_TOOTH, PT_FADE, PT_FADE_FIGURES, PT_PRINT,
 	PT_ZOOM, PT_GEARS
 };
 
@@ -159,6 +159,7 @@ void CogwheelPlugin::declareParameters()
 	standard( PT_GRAIN, "Grain" );
 	standard( PT_TOOTH, "Tooth" );
 	standard( PT_FADE, "Fade" );
+	SetParamInfo( PT_FADE_FIGURES, "Fade by Figure", FF_TYPE_BOOLEAN, params[ PT_FADE_FIGURES ] > 0.5f );
 	option( PT_PRINT, "Print", kPrintCount, kPrintNames );
 
 	// -- Framing -------------------------------------------------------------
@@ -292,8 +293,11 @@ FFResult CogwheelPlugin::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 		crank.ClearWipeRequest();
 	}
 
-	resolved.render.frameSeconds = static_cast< float >( clock.FrameSeconds() );
-	resolved.render.clearSheet   = clearRequested;
+	resolved.render.frameSeconds  = static_cast< float >( clock.FrameSeconds() );
+	resolved.render.clearSheet    = clearRequested;
+	//Read after Advance, so it is this frame's closures and not the last
+	//frame's. Only Sheet reads it, and only when fading by figure.
+	resolved.render.figuresClosed = crank.FiguresClosed();
 	clearRequested               = false;
 
 	const bool drawn = sheet.Render( steps, runs, geometry, crank.Theta(), crank.SlipTeeth(),

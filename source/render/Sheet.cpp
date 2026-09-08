@@ -32,6 +32,7 @@ bool Sheet::InitGL()
 	} stages[] = {
 		{ inkShader, shaders::inkVertex(), shaders::inkFragment(), "ink" },
 		{ fadeShader, shaders::screenVertex(), shaders::fadeFragment(), "fade" },
+		{ composeShader, shaders::screenVertex(), shaders::composeFragment(), "compose" },
 		{ sheetShader, shaders::screenVertex(), shaders::sheetFragment(), "sheet" },
 	};
 
@@ -112,6 +113,7 @@ void Sheet::DeInitGL()
 {
 	inkShader.FreeGLResources();
 	fadeShader.FreeGLResources();
+	composeShader.FreeGLResources();
 	sheetShader.FreeGLResources();
 
 	quad.Release();
@@ -134,9 +136,33 @@ void Sheet::DeInitGL()
 	}
 
 	paper.Destroy();
+	settled.Destroy();
+	settledInUse = false;
 
 	sheetWidth  = 0;
 	sheetHeight = 0;
+}
+
+void Sheet::Compose( PaperBuffer& from, PaperBuffer& into )
+{
+	if( !from.IsValid() || !into.IsValid() || !composeShader.IsReady() )
+		return;
+
+	ScopedFBOBinding fbo( into.GetGLID(), ScopedFBOBinding::RB_REVERT );
+
+	// ScopedFBOBinding restores the framebuffer and says nothing about the
+	// viewport -- the same trap the fade pass is built around.
+	glViewport( 0, 0, sheetWidth, sheetHeight );
+
+	setAdditiveBlend();
+
+	ScopedShaderBinding shader( composeShader.GetGLID() );
+	glActiveTexture( GL_TEXTURE0 );
+	glBindTexture( GL_TEXTURE_2D, from.GetTextureInfo().Handle );
+	composeShader.Set( "Source", 0 );
+	quad.Draw();
+
+	glBindTexture( GL_TEXTURE_2D, 0 );
 }
 
 bool Sheet::Render( const std::vector< Step >& steps, const std::vector< Run >& runs,
@@ -153,7 +179,7 @@ bool Sheet::Render( const std::vector< Step >& steps, const std::vector< Run >& 
 	// comes from.
 	ScopedGLState state;
 
-	if( !inkShader.IsReady() || !fadeShader.IsReady() || !sheetShader.IsReady() )
+	if( !inkShader.IsReady() || !fadeShader.IsReady() || !composeShader.IsReady() || !sheetShader.IsReady() )
 		return false;
 
 	const int outputWidth  = std::max( 1, viewport[ 2 ] );
@@ -185,6 +211,76 @@ bool Sheet::Render( const std::vector< Step >& steps, const std::vector< Run >& 
 		paper.ClearTo( 0.0f, 0.0f, 0.0f, 0.0f );
 
 	//-----------------------------------------------------------------------
+	// The settled sheet.
+	//
+	// Fading by figure splits the drawing in two: `settled` holds every figure
+	// that has closed and is the only thing the fade touches, `paper` holds the
+	// figure being drawn and is left alone until it closes. The sheet pass sums
+	// them.
+	//
+	// The obvious cheaper design does not work. "Hold the fade off while the
+	// pen is down, and let it run when the pen lifts" sounds like it needs no
+	// second buffer -- but the pen is down for every frame of a drawing. The
+	// lift between figures is a Run boundary and takes no time at all (see
+	// `Crank::completeFigure`), so a fade gated on the pen is a fade that never
+	// runs. Applying the whole figure's worth of fade in one go at the closure
+	// instead is a step change, not a fade.
+	//-----------------------------------------------------------------------
+	const bool fading   = params.fadeSeconds > 0.0f && params.frameSeconds > 0.0f;
+	const bool byFigure = fading && params.fadeByFigure;
+
+	// exp( -dt / tau ), computed here rather than in the shader so that it is
+	// one transcendental per frame instead of one per pixel, and so that the
+	// harness can read the number back.
+	const float retain = fading ? std::exp( -params.frameSeconds / params.fadeSeconds ) : 1.0f;
+
+	if( byFigure )
+	{
+		if( !settled.Ensure( outputWidth, outputHeight, GL_RGBA32F, PaperBuffer::Smooth ) )
+		{
+			diag::error( "could not allocate the settled sheet" );
+			return false;
+		}
+
+		// `!settledInUse` is the frame the switch came on. What is already on
+		// the paper stays there and counts as the figure in progress, so it
+		// joins the settled sheet at the next closure rather than being thrown
+		// away or double-counted.
+		if( params.clearSheet || resized || !settledInUse )
+			settled.ClearTo( 0.0f, 0.0f, 0.0f, 0.0f );
+		settledInUse = true;
+
+		{
+			ScopedFBOBinding fbo( settled.GetGLID(), ScopedFBOBinding::RB_REVERT );
+			glViewport( 0, 0, sheetWidth, sheetHeight );
+
+			setMultiplyBlend();
+			ScopedShaderBinding shader( fadeShader.GetGLID() );
+			fadeShader.Set( "Retain", retain );
+			quad.Draw();
+		}
+
+		// Fade first and fold in second, so a figure joins the pile at full
+		// strength and starts fading on the frame after it closed rather than
+		// on the one it closed in.
+		if( params.figuresClosed > 0 )
+		{
+			Compose( paper, settled );
+			paper.ClearTo( 0.0f, 0.0f, 0.0f, 0.0f );
+		}
+	}
+	else if( settledInUse )
+	{
+		// The switch has just gone off, or the fade has been turned down to
+		// nothing. Everything that had settled has to come back onto the paper,
+		// or every closed figure vanishes the instant the operator changes
+		// their mind.
+		Compose( settled, paper );
+		settled.Destroy();
+		settledInUse = false;
+	}
+
+	//-----------------------------------------------------------------------
 	// Upload the frame's steps. GL_STREAM_DRAW and a fresh glBufferData every
 	// frame: the point is that the driver orphans the old storage rather than
 	// waiting for the previous frame's draw to finish reading it.
@@ -209,13 +305,11 @@ bool Sheet::Render( const std::vector< Step >& steps, const std::vector< Run >& 
 		// the host's output, in a buffer that may be a different size.
 		glViewport( 0, 0, sheetWidth, sheetHeight );
 
-		if( params.fadeSeconds > 0.0f && params.frameSeconds > 0.0f )
+		// Not when fading by figure: there the fade has already been applied,
+		// to the settled sheet, and this buffer is the one figure that must not
+		// receive it.
+		if( fading && !byFigure )
 		{
-			// exp( -dt / tau ), computed here rather than in the shader so that
-			// it is one transcendental per frame instead of one per pixel, and
-			// so that the harness can read the number back.
-			const float retain = std::exp( -params.frameSeconds / params.fadeSeconds );
-
 			setMultiplyBlend();
 			ScopedShaderBinding shader( fadeShader.GetGLID() );
 			fadeShader.Set( "Retain", retain );
@@ -306,9 +400,17 @@ bool Sheet::Render( const std::vector< Step >& steps, const std::vector< Run >& 
 		glBindTexture( GL_TEXTURE_2D, paper.GetTextureInfo().Handle );
 		glActiveTexture( GL_TEXTURE1 );
 		glBindTexture( GL_TEXTURE_2D, clipOrBlank );
+		// Bound whether it is in use or not: a core-profile driver validates
+		// every declared sampler, so the blank texel goes here for the same
+		// reason it goes on the clip unit. UseSettled is what decides whether
+		// the tap counts.
+		glActiveTexture( GL_TEXTURE2 );
+		glBindTexture( GL_TEXTURE_2D, settledInUse ? settled.GetTextureInfo().Handle : blankTexture );
 
 		sheetShader.Set( "PaperTexture", 0 );
 		sheetShader.Set( "ClipTexture", 1 );
+		sheetShader.Set( "SettledTexture", 2 );
+		sheetShader.Set( "UseSettled", settledInUse ? 1.0f : 0.0f );
 		sheetShader.Set( "MaxUV", maxU, maxV );
 		sheetShader.Set( "SheetAspect", sheetAspect );
 
@@ -352,6 +454,8 @@ bool Sheet::Render( const std::vector< Step >& steps, const std::vector< Run >& 
 
 		// Every ffglex::Scoped* binding clears to 0 on the way out rather than
 		// restoring, so the units are unbound by hand and in a defined order.
+		glActiveTexture( GL_TEXTURE2 );
+		glBindTexture( GL_TEXTURE_2D, 0 );
 		glActiveTexture( GL_TEXTURE1 );
 		glBindTexture( GL_TEXTURE_2D, 0 );
 		glActiveTexture( GL_TEXTURE0 );

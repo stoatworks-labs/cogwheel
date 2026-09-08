@@ -214,6 +214,12 @@ Resolved Resolve( const float* p, double bpm, bool overInput )
 	r.render.fadeSeconds = p[ PT_FADE ] <= 0.001f ? 0.0f
 	                                              : Exponential( p[ PT_FADE ], 120.0f, 1.0f );
 
+	//What the fade acts on: the sheet, or the figures on it. Off is the
+	//ordinary fade and the behaviour every composition saved before this
+	//existed will keep, because a parameter a file does not mention takes its
+	//default. See Sheet.h for why this is not simply a gate on the pen.
+	r.render.fadeByFigure = boolean( p[ PT_FADE_FIGURES ] );
+
 	r.render.negative = Option( p[ PT_PRINT ], kPrintCount ) == static_cast< int >( Print::Negative );
 
 	// -- The overlay ---------------------------------------------------------

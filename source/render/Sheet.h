@@ -97,6 +97,22 @@ public:
 		/// means it does not fade, which is what paper does.
 		float fadeSeconds = 0.0f;
 
+		/// Fade whole figures rather than the line as it is drawn.
+		///
+		/// The ordinary fade acts on the sheet every frame, so ink laid down
+		/// early in a figure has faded more than ink laid down late and the
+		/// line carries a gradient along its own length. With this set, the
+		/// figure being drawn does not fade at all; it joins the rest of the
+		/// drawing when it closes, and fades from then on as one object.
+		///
+		/// Only means anything with `fadeSeconds` above zero, and costs a
+		/// second sheet-sized buffer while it is on.
+		bool fadeByFigure = false;
+
+		/// How many figures closed during the frame being drawn, straight from
+		/// `Crank::FiguresClosed`. Read only when `fadeByFigure`.
+		int figuresClosed = 0;
+
 		/// Show a photographic negative of the sheet. Ink only ever darkens
 		/// paper, so this is the only way to a pale line on a dark ground --
 		/// and it is a real one: a drawing, photographed and printed the other
@@ -144,19 +160,35 @@ public:
 	             GLuint hostFBO, const GLint viewport[ 4 ],
 	             GLuint clipTexture, float maxU, float maxV );
 
+	/// Whether the second buffer is currently allocated -- which is also
+	/// whether the drawing is currently split in two. For the harness and the
+	/// diagnostics log.
+	bool SettledInUse() const { return settledInUse; }
+
 	/// Size of the sheet buffer, for the diagnostics log and the harness. Zero
 	/// before the first successful Render.
 	int SheetHeight() const { return sheetHeight; }
 	int SheetWidth() const { return sheetWidth; }
 
 private:
+	/// Add one sheet's density into another, and leave the source alone.
+	/// Additive, because these are absorptions.
+	void Compose( PaperBuffer& from, PaperBuffer& into );
+
 	ffglex::FFGLShader inkShader;
 	ffglex::FFGLShader fadeShader;
+	ffglex::FFGLShader composeShader;
 	ffglex::FFGLShader sheetShader;
 
 	ffglex::FFGLScreenQuad quad;
 
 	PaperBuffer paper;
+
+	/// The figures that have closed, when fading by figure. Allocated only
+	/// while that is on, and folded back into `paper` the moment it goes off --
+	/// otherwise turning the switch back would throw the drawing away.
+	PaperBuffer settled;
+	bool settledInUse = false;
 
 	GLuint inkVAO = 0;
 	GLuint inkVBO = 0;

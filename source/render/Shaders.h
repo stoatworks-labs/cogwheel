@@ -84,6 +84,12 @@ const std::string& inkFragment();
 /// ping-pong and no second allocation.
 const std::string& fadeFragment();
 
+/// One sheet's density added into another's. Drawn with
+/// `glBlendFunc( GL_ONE, GL_ONE )`, so it composes rather than copies: it folds
+/// the figure that has just closed into the settled sheet when the drawing is
+/// fading by figure.
+const std::string& composeFragment();
+
 /// The sheet: paper, grain, Beer's law, the gear overlay, and the composite
 /// onto the host's framebuffer.
 const std::string& sheetFragment();

@@ -14,6 +14,7 @@
         --rate      the same second of cranking at 24, 60 and 120 fps
         --beer      two pens crossing multiply, they do not add
         --liveness  the defaults keep drawing; a stiff machine provably stops
+        --figurefade turning Fade by Figure off does not lose the drawing
         --presets   every preset draws something with structure in it
         --defaults  the constructor's defaults ARE preset 1
         --hosts     presets survive all three host behaviours
@@ -616,6 +617,77 @@ int runDetail( const Target& target )
 	//curves inside one segment.
 	const bool ok = spread < 0.005;
 	std::printf( "\n  spread %.3f%%  %s\n", 100.0 * spread, ok ? "PASS" : "FAIL" );
+	return ok ? 0 : 1;
+}
+
+//---------------------------------------------------------------------------
+// --figurefade
+//---------------------------------------------------------------------------
+int runFigureFade( const Target& target )
+{
+	std::printf( "figurefade -- turning Fade by Figure off does not lose the drawing\n\n" );
+
+	//The switch splits the sheet in two: the figures that have closed, which
+	//fade, and the one being drawn, which does not. The subtle way to get that
+	//wrong is the way back -- if the settled half is not folded back onto the
+	//paper when the switch goes off, every closed figure vanishes on the frame
+	//the operator changes their mind, and nothing else in this repo would
+	//notice. So: draw with it on for long enough that several figures have
+	//settled, read the sheet, turn it off, and read the sheet again.
+	CogwheelPlugin plugin( false );
+	if( !startPlugin( plugin, target ) )
+		return 1;
+
+	setMeasurementLook( plugin );
+	//96/32 closes in a single turn and 0.90 is about five turns a second, so a
+	//figure closes roughly every twelve frames at 60 fps.
+	plugin.SetFloatParameter( PT_WHEEL, 32.0f );
+	plugin.SetFloatParameter( PT_RATE, 0.90f );
+	plugin.SetFloatParameter( PT_LAYERS, 4.0f );
+	//Wipe OFF, and this is the line the check turns on rather than a detail.
+	//With it on the sheet is wiped every four closures, so the settled half is
+	//empty a quarter of the time -- and a run that happens to stop just after a
+	//wipe has nothing to lose, which is exactly the state in which this check
+	//passes whether the code is right or not. Measured: with Wipe on, deleting
+	//the fold-back entirely still passed.
+	plugin.SetFloatParameter( PT_WIPE, 0.0f );
+	//A fade slow enough that a frame of it is not what the comparison measures.
+	plugin.SetFloatParameter( PT_FADE, 0.6f );
+	plugin.SetFloatParameter( PT_FADE_FIGURES, 1.0f );
+
+	int frame = 0;
+	for( ; frame < 200; ++frame )
+		renderFrame( plugin, target, frame );
+
+	const double split = totalDensity( readFloats( target ) );
+
+	//Stop the hand before flipping the switch. With the crank turning, the
+	//frame across the switch also lays down fresh line, and the measurement
+	//would be a mixture of the thing being tested and one frame of drawing.
+	//Frozen, the only honest difference between the two reads is a single
+	//frame of fade.
+	plugin.SetFloatParameter( PT_RATE, 0.0f );
+	renderFrame( plugin, target, frame++ );
+	const double frozen = totalDensity( readFloats( target ) );
+
+	plugin.SetFloatParameter( PT_FADE_FIGURES, 0.0f );
+	renderFrame( plugin, target, frame++ );
+	const double rejoined = totalDensity( readFloats( target ) );
+
+	plugin.DeInitGL();
+
+	std::printf( "  split     %14.1f\n", split );
+	std::printf( "  frozen    %14.1f\n", frozen );
+	std::printf( "  rejoined  %14.1f\n", rejoined );
+
+	//Not losing the settled half is the whole point: if it were dropped instead
+	//of folded back onto the paper, every figure that had closed would go, and
+	//this would fall by most of the drawing rather than by one frame of fade.
+	//Five percent is comfortably wider than a frame of the 0.6 s fade used here
+	//(about 2.8%) and far narrower than the failure being guarded against.
+	const double drop = frozen > 0.0 ? ( frozen - rejoined ) / frozen : 1.0;
+	const bool ok = frozen > 0.0 && std::fabs( drop ) < 0.05;
+	std::printf( "\n  %+.2f%% across the switch  %s\n", -100.0 * drop, ok ? "PASS" : "FAIL" );
 	return ok ? 0 : 1;
 }
 
@@ -1803,6 +1875,7 @@ void usage()
 		"  --rate      one second of cranking at 24, 60 and 120 fps\n"
 		"  --beer      two pens crossing multiply, they do not add\n"
 		"  --liveness  the defaults keep drawing; a stiff machine stops\n"
+		"  --figurefade  turning Fade by Figure off does not lose the drawing\n"
 		"  --presets   every preset draws something with structure in it\n"
 		"  --defaults  the constructor's defaults ARE preset 1\n"
 		"  --hosts     presets survive all three host behaviours\n"
@@ -1955,6 +2028,7 @@ int main( int argc, char** argv )
 		run( "rate", runRate );
 		run( "beer", runBeer );
 		run( "liveness", runLiveness );
+		run( "figurefade", runFigureFade );
 		run( "presets", runPresets );
 		if( wanted( "defaults" ) ) { ++ran; std::printf( "\n" ); failed += runDefaults(); }
 		if( wanted( "hosts" ) )    { ++ran; std::printf( "\n" ); failed += runHosts(); }
