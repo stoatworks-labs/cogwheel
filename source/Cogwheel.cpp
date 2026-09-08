@@ -185,8 +185,12 @@ void CogwheelPlugin::declareParameters()
 			                     static_cast< float >( i + 1 ) );
 	}
 
-	// -- Export --------------------------------------------------------------
+	// -- Export, and the way back --------------------------------------------
 	SetParamInfo( PT_EXPORT, "Export XML", FF_TYPE_EVENT, false );
+	// A FILE parameter: Resolume shows a picker filtered to the extension, and
+	// hands the chosen path to SetTextParameter. The nearest thing FFGL has to
+	// a user-defined preset -- the file is the slot.
+	SetFileParamInfo( PT_LOAD, "Load XML", { "xml" }, "" );
 
 	// -- Groups --------------------------------------------------------------
 	//
@@ -207,7 +211,7 @@ void CogwheelPlugin::declareParameters()
 	group( PT_ZOOM, PT_CENTRE_Y, "Framing" );
 	group( PT_GEARS, PT_GEAR_B, "Overlay" );
 	group( PT_MIX, PT_MIX, "Output" );
-	group( PT_PRESET, PT_EXPORT, "Preset" );
+	group( PT_PRESET, PT_LOAD, "Preset" );
 
 	// -- About ---------------------------------------------------------------
 	SetParamInfo( PT_ABOUT_TEXT, "About", FF_TYPE_TEXT, stoatworks::about::defaultText() );
@@ -354,6 +358,10 @@ FFResult CogwheelPlugin::SetFloatParameter( unsigned int index, float value )
 		return FF_SUCCESS;
 	}
 
+	if( index == PT_LOAD )
+		return FF_SUCCESS;//a FILE parameter arrives as text; a float for it means nothing
+
+
 	if( index == PT_PRESET )
 	{
 		const int chosen = static_cast< int >( std::lround( value ) );
@@ -372,6 +380,12 @@ FFResult CogwheelPlugin::SetFloatParameter( unsigned int index, float value )
 
 	const float previous = params[ index ];
 	params[ index ]      = value;
+
+	// The operator has moved a control a file set. The held value follows
+	// them, so that dragging back through the file's own value is not read as
+	// the host repeating itself and swallowed.
+	if( loadedActive && loadable( index ) )
+		loaded[ index ] = value;
 
 	const int active = static_cast< int >( std::lround( params[ PT_PRESET ] ) );
 	if( active > 0 && std::fabs( value - previous ) > 1e-4f )
@@ -412,7 +426,12 @@ Geometry CogwheelPlugin::GeometryForTest() const
 
 float CogwheelPlugin::presetValue( int presetIndex, unsigned int id ) const
 {
-	if( presetIndex <= 0 || presetIndex > presets::kCount )
+	// Custom -- but a loaded file is held exactly as a preset is, and this is
+	// the one place that decides what "held" means.
+	if( presetIndex <= 0 )
+		return loadedActive && loadable( id ) ? loaded[ id ] : -1.0f;
+
+	if( presetIndex > presets::kCount )
 		return -1.0f;
 
 	const presets::Preset& preset = presets::kPresets[ presetIndex - 1 ];
@@ -478,6 +497,10 @@ void CogwheelPlugin::applyPreset( int presetIndex )
 	if( presetIndex <= 0 || presetIndex > presets::kCount )
 		return;//Custom: the sliders keep whatever they said
 
+	// A factory preset takes over from a loaded file: the file's values are
+	// no longer the truth being held.
+	loadedActive = false;
+
 	const presets::Preset& preset = presets::kPresets[ presetIndex - 1 ];
 	for( int j = 0; j < presets::kParamCount; ++j )
 	{
@@ -516,6 +539,9 @@ char* CogwheelPlugin::GetTextParameter( unsigned int index )
 		return const_cast< char* >( text.c_str() );
 	}
 
+	if( index == PT_LOAD )
+		return const_cast< char* >( loadPath.c_str() );
+
 	return CFFGLPlugin::GetTextParameter( index );
 }
 
@@ -527,6 +553,23 @@ FFResult CogwheelPlugin::SetTextParameter( unsigned int index, const char* value
 	// refusing to load.
 	if( index == PT_ABOUT_TEXT )
 		return FF_SUCCESS;
+
+	if( index == PT_LOAD )
+	{
+		// The SDK sets every text parameter to its default at instantiation,
+		// and a host may restate the path it already gave. Neither is a
+		// request to load: only a DIFFERENT path is, or a host that pushes its
+		// parameters every frame would wipe the sheet every frame.
+		const std::string path = value != nullptr ? value : "";
+		if( path == loadPath )
+			return FF_SUCCESS;
+		loadPath = path;
+		if( path.empty() )
+			loadNote = "none";
+		else
+			LoadConfig( path );
+		return FF_SUCCESS;//a bad file is a logged failure, not a refused parameter
+	}
 
 	return CFFGLPlugin::SetTextParameter( index, value );
 }
@@ -639,6 +682,11 @@ char* CogwheelPlugin::GetParameterDisplay( unsigned int index )
 		//not room for a path, which is why the path goes in the log.
 		std::snprintf( buffer, sizeof( buffer ), "%s", exportNote.c_str() );//failed - see log = 16
 		break;
+	case PT_LOAD:
+		//"none" until a file has been chosen, then the outcome. The path and
+		//any row that could not be placed are in the log.
+		std::snprintf( buffer, sizeof( buffer ), "%s", loadNote.c_str() );//partly - see log = 16
+		break;
 	default:
 		return PlainDisplay( index );
 	}
@@ -657,6 +705,11 @@ void CogwheelPlugin::ExportConfig()
 	// are not configuration, and reading a button's value is meaningless.
 	for( unsigned int id = 0; id < PT_ABOUT_TEXT; ++id )
 	{
+		// The file parameter is a path, not a setting, and a file that names
+		// the file it was loaded from is a loop waiting to happen.
+		if( id == PT_LOAD )
+			continue;
+
 		config::Row row;
 		row.id = id;
 
@@ -697,7 +750,8 @@ void CogwheelPlugin::ExportConfig()
 	std::string error;
 	if( config::Write( rows, preset, path, error ) )
 	{
-		exportNote = "saved";
+		exportNote     = "saved";
+		lastExportPath = path;
 		// The path is the whole point of logging this. An operator presses a
 		// button, the panel says "saved", and without this line there is nothing
 		// anywhere that says WHERE -- which is the same as not having saved it.
@@ -708,6 +762,117 @@ void CogwheelPlugin::ExportConfig()
 		exportNote = "failed - see log";
 		diag::error( "configuration export failed: " + error );
 	}
+}
+
+bool CogwheelPlugin::loadable( unsigned int id )
+{
+	return id < PT_ABOUT_TEXT && id != PT_RESET && id != PT_EXPORT && id != PT_LOAD && id != PT_PRESET;
+}
+
+int CogwheelPlugin::idForName( const std::string& name )
+{
+	// The source calls PT_MIX "Opacity" and the effect calls it "Mix", and a
+	// file written by one has to load into the other.
+	if( name == "Mix" || name == "Opacity" )
+		return PT_MIX;
+
+	for( unsigned int id = 0; id < PT_ABOUT_TEXT; ++id )
+	{
+		const char* candidate = GetParamName( id );
+		if( candidate != nullptr && name == candidate )
+			return static_cast< int >( id );
+	}
+	return -1;
+}
+
+bool CogwheelPlugin::LoadConfig( const std::string& path )
+{
+	// Before anything is written, for the same reason applyPreset needs it:
+	// the host's opening position has to be on record before the override is,
+	// or the host's next restatement reads as an edit.
+	seedHostValues();
+
+	std::string text;
+	std::string error;
+	std::string preset;
+	std::vector< config::Loaded > rows;
+	if( !config::ReadFile( path, text, error ) || !config::Parse( text, rows, preset, error ) )
+	{
+		loadNote = "failed - see log";
+		diag::error( "configuration load failed: " + error );
+		return false;
+	}
+
+	int applied = 0;
+	int unknown = 0;
+	for( const config::Loaded& row : rows )
+	{
+		const int found = idForName( row.name );
+		if( found < 0 )
+		{
+			++unknown;
+			diag::info( "configuration row ignored, no such control: " + row.name );
+			continue;
+		}
+		const unsigned int id = static_cast< unsigned int >( found );
+		if( !loadable( id ) )
+			continue;//the file records the buttons and the dropdown too; those are not settings
+
+		// Clamped to what the panel could have set, so a hand-edited file
+		// cannot put a control where no slider goes. An option's limit is its
+		// element count, an integer's is its declared range, everything else
+		// is 0..1.
+		float value             = row.value;
+		const unsigned int type = GetParamType( id );
+		if( type == FF_TYPE_OPTION )
+			value = std::clamp( value, 0.0f,
+			                    static_cast< float >( std::max( 1u, GetNumParamElements( id ) ) ) - 1.0f );
+		else if( type == FF_TYPE_INTEGER )
+		{
+			const RangeStruct range = GetParamRange( id );
+			value                   = std::clamp( value, range.min, range.max );
+		}
+		else
+			value = std::clamp( value, 0.0f, 1.0f );
+
+		loaded[ id ] = value;
+		if( std::fabs( params[ id ] - value ) > 1e-6f )
+		{
+			// The copy is what changes the drawing; the event only tells the
+			// host to re-read the control, exactly as in applyPreset.
+			params[ id ] = value;
+			RaiseParamEvent( id, FF_EVENT_FLAG_VALUE );
+		}
+		++applied;
+	}
+
+	if( applied == 0 )
+	{
+		loadNote = "failed - see log";
+		diag::error( "configuration load failed: nothing in " + path + " names a control" );
+		return false;
+	}
+
+	// From here the file's values are an OVERRIDE, held against the host's
+	// restatements by hostIsRestatingItself exactly as a factory preset's are.
+	// They are not a factory preset, so the dropdown says Custom.
+	loadedActive = true;
+	if( std::lround( params[ PT_PRESET ] ) != 0 )
+	{
+		params[ PT_PRESET ] = 0.0f;
+		RaiseParamEvent( PT_PRESET, FF_EVENT_FLAG_VALUE );
+	}
+
+	// A loaded look is a different machine, like a preset, so the drawing in
+	// progress is finished with.
+	crank.Restart( static_cast< uint32_t >( std::max( 1, static_cast< int >( std::lround( params[ PT_SEED ] ) ) ) ) );
+	clearRequested = true;
+
+	loadNote = unknown > 0 ? "partly - see log" : "loaded";
+	diag::info( "configuration loaded from " + path + ": " + std::to_string( applied ) + " controls"
+	            + ( unknown > 0 ? ", " + std::to_string( unknown ) + " rows named nothing here" : "" )
+	            + ( preset.empty() ? "" : ", exported from " + preset ) );
+	return true;
 }
 
 char* CogwheelPlugin::PlainDisplay( unsigned int index )

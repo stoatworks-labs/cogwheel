@@ -103,8 +103,9 @@ enum ParamId : unsigned int
 	// -- Preset --------------------------------------------------------------
 	//
 	// Last, and its own group, so it is where every other plugin in the fleet
-	// puts it, and declared AFTER the real controls so that adding a preset
-	// cannot shift a saved composition's parameter numbering.
+	// puts it. (Resolume matches a saved composition's parameters by NAME, not
+	// by id -- vectrix proved it -- so inserting a parameter mid-list is safe
+	// and renaming a released one is not.)
 	PT_PRESET,
 
 	// Writes every control's current value to an XML file, next to the Preset
@@ -113,6 +114,12 @@ enum ParamId : unsigned int
 	// user-defined preset list, which is what #9 asked for -- the dropdown's
 	// elements are fixed at declaration and the host owns the panel.
 	PT_EXPORT,
+
+	// Reads one of those files back in: #9's other half. A FILE parameter,
+	// which Resolume shows as a file picker. Choosing a file sets every control
+	// it names and holds them against the host's restatements exactly the way
+	// a factory preset is held -- see CogwheelPlugin::LoadConfig.
+	PT_LOAD,
 
 	// -- The Stoatworks About block ------------------------------------------
 	//

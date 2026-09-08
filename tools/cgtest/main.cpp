@@ -18,6 +18,7 @@
         --presets   every preset draws something with structure in it
         --defaults  the constructor's defaults ARE preset 1
         --hosts     presets survive all three host behaviours
+        --config    a look survives Export XML, Load XML and the host
         --scale     the same preset is the same drawing at every raster
         --guard     a hostile machine leaves no NaN on the sheet
         --all       every one of the above, with a summary
@@ -104,11 +105,14 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <map>
 #include <string>
 #include <vector>
 
 #include "Cogwheel.h"
+#include "Config.h"
 #include "Controls.h"
 #include "Presets.h"
 #include "machine/Gears.h"
@@ -1198,6 +1202,163 @@ int runHosts()
 }
 
 //---------------------------------------------------------------------------
+// --config
+//---------------------------------------------------------------------------
+//
+// Export XML and Load XML are one feature, #9, and the check is the round
+// trip: a look goes out through one and comes back through the other on a
+// fresh instance, and then survives the same host behaviours --hosts checks,
+// because a loaded file is held the way a preset is. No GL involved.
+int runConfig()
+{
+	std::printf( "config -- a look survives Export XML, Load XML and the host\n\n" );
+
+	int failures = 0;
+	auto check   = [ & ]( bool ok, const char* what ) {
+		std::printf( "  %-58s %s\n", what, ok ? "ok" : "FAIL" );
+		if( !ok )
+			++failures;
+	};
+
+	// The document itself, with no file system involved.
+	{
+		std::vector< config::Row > rows;
+		rows.push_back( { 1, "Ring Teeth", "integer", 96.0f, "96t - 24 lobes" } );
+		rows.push_back( { 7, "A <b> & \"c\"", "standard", 0.25f, "it's" } );
+		const std::string text = config::Document( rows, "Custom", "2026-09-08 12:00:00" );
+
+		std::vector< config::Loaded > back;
+		std::string preset;
+		std::string error;
+		const bool parsed = config::Parse( text, back, preset, error );
+		check( parsed && back.size() == 2 && preset == "Custom", "Document() parses back, with its preset" );
+		check( back.size() == 2 && back[ 1 ].name == "A <b> & \"c\"" && std::fabs( back[ 1 ].value - 0.25f ) < 1e-6f,
+		       "escaped characters in a name round-trip" );
+		check( !config::Parse( "<html>not ours</html>", back, preset, error ) && !error.empty(),
+		       "text with no <cogwheel> root is refused" );
+	}
+
+	// Somewhere that is not a real person's Documents folder.
+	const std::string dir = ( std::filesystem::temp_directory_path() / "cogwheel-config-check" ).string();
+	std::filesystem::create_directories( dir );
+#if defined( _WIN32 )
+	_putenv_s( "COGWHEEL_EXPORT_DIR", dir.c_str() );
+#else
+	setenv( "COGWHEEL_EXPORT_DIR", dir.c_str(), 1 );
+#endif
+
+	// A look that is not the defaults, on every kind of control there is.
+	struct Set
+	{
+		unsigned int id;
+		float value;
+	};
+	const Set look[] = {
+		{ PT_WHEEL, 45.0f },     { PT_MESH, 1.0f },        { PT_RATE, 0.31f },  { PT_CREEP, 0.42f },
+		{ PT_SNAP_HOLES, 0.0f }, { PT_LAYERS, 3.0f },      { PT_INK_R, 0.1f },  { PT_INK_G, 0.2f },
+		{ PT_INK_B, 0.3f },      { PT_FADE, 0.5f },        { PT_FADE_FIGURES, 1.0f },
+		{ PT_PRINT, 1.0f },      { PT_MIX, 0.8f },         { PT_SEED, 7.0f },
+	};
+	auto matches = [ & ]( CogwheelPlugin& plugin ) {
+		for( const Set& s : look )
+			if( std::fabs( plugin.GetFloatParameter( s.id ) - s.value ) > 1.5e-3f )
+				return false;
+		return true;
+	};
+
+	CogwheelPlugin writer( false );
+	writer.SetFloatParameter( PT_PRESET, 0.0f );
+	for( const Set& s : look )
+		writer.SetFloatParameter( s.id, s.value );
+	writer.ExportConfig();
+	const std::string path = writer.LastExportPath();
+	check( !path.empty(), "Export XML writes a file" );
+	if( path.empty() )
+		return 1;
+
+	int count               = 0;
+	const unsigned int* ids = CogwheelPlugin::PresetParamIDsForTest( count );
+
+	// The round trip, onto a fresh instance that has never seen the look.
+	CogwheelPlugin reader( false );
+	std::vector< float > believed( PT_COUNT );
+	for( unsigned int id = 0; id < PT_COUNT; ++id )
+		believed[ id ] = reader.GetFloatParameter( id );
+	reader.SetTextParameter( PT_LOAD, path.c_str() );
+
+	check( matches( reader ), "Load XML puts every control back" );
+	check( std::lround( reader.GetFloatParameter( PT_PRESET ) ) == 0, "the dropdown says Custom" );
+	check( std::string( reader.GetParameterDisplay( PT_LOAD ) ) == "loaded", "the row says loaded" );
+
+	// Loading the same path again is a restatement, not a load, so the sheet
+	// is not wiped: an edit made since must survive it.
+	reader.SetFloatParameter( PT_NIB, 0.77f );
+	reader.SetTextParameter( PT_LOAD, path.c_str() );
+	check( std::fabs( reader.GetFloatParameter( PT_NIB ) - 0.77f ) < 1e-6f, "the same path again is not a second load" );
+
+	// The host's traffic afterwards: the behaviours --hosts checks.
+	for( int pass = 0; pass < 2; ++pass )
+		for( int j = 0; j < count; ++j )
+			reader.SetFloatParameter( ids[ j ], believed[ ids[ j ] ] );
+	check( matches( reader ), "held against a host that ignores value events" );
+	for( int j = 0; j < count; ++j )
+		reader.SetFloatParameter( ids[ j ], std::round( reader.GetFloatParameter( ids[ j ] ) * 1000.0f ) / 1000.0f );
+	check( matches( reader ), "held against a host that quantises" );
+
+	// The operator is still in charge, and a factory preset still wins.
+	reader.SetFloatParameter( PT_RATE, 0.9f );
+	check( std::fabs( reader.GetFloatParameter( PT_RATE ) - 0.9f ) < 1e-6f, "an operator edit still lands" );
+	reader.SetFloatParameter( PT_PRESET, 2.0f );
+	check( std::fabs( reader.GetFloatParameter( PT_WHEEL ) - presets::kPresets[ 1 ].v[ 1 ] ) < 1e-6f,
+	       "a factory preset takes over from the file" );
+
+	// A file from another release has different ids; only the names matter.
+	{
+		std::string text;
+		std::string error;
+		config::ReadFile( path, text, error );
+		std::string shifted;
+		for( size_t i = 0; i < text.size(); )
+		{
+			if( text.compare( i, 4, "id=\"" ) == 0 )
+			{
+				shifted += "id=\"999\"";
+				const size_t close = text.find( '"', i + 4 );
+				i                  = close == std::string::npos ? text.size() : close + 1;
+			}
+			else
+				shifted += text[ i++ ];
+		}
+		const std::string other = dir + "/shifted.xml";
+		{
+			std::ofstream out( other, std::ios::binary | std::ios::trunc );
+			out << shifted;
+		}
+		CogwheelPlugin plugin( false );
+		plugin.SetTextParameter( PT_LOAD, other.c_str() );
+		check( matches( plugin ), "a file with every id wrong still loads, by name" );
+	}
+
+	// Rubbish is refused and changes nothing.
+	{
+		const std::string bad = dir + "/bad.xml";
+		{
+			std::ofstream out( bad, std::ios::binary | std::ios::trunc );
+			out << "<html>no</html>";
+		}
+		CogwheelPlugin plugin( false );
+		plugin.SetFloatParameter( PT_PRESET, 3.0f );
+		plugin.SetTextParameter( PT_LOAD, bad.c_str() );
+		check( std::lround( plugin.GetFloatParameter( PT_PRESET ) ) == 3
+		           && std::string( plugin.GetParameterDisplay( PT_LOAD ) ) == "failed - see log",
+		       "a file that is not ours is refused and touches nothing" );
+	}
+
+	std::printf( "\n  %s\n", failures == 0 ? "PASS" : "FAIL" );
+	return failures == 0 ? 0 : 1;
+}
+
+//---------------------------------------------------------------------------
 // --scale
 //---------------------------------------------------------------------------
 //
@@ -1476,6 +1637,7 @@ int runList( bool namesOnly )
 			case FF_TYPE_INTEGER: kind = "integer"; break;
 			case FF_TYPE_OPTION:  kind = "option"; break;
 			case FF_TYPE_TEXT:    kind = "text"; break;
+			case FF_TYPE_FILE:    kind = "file"; break;
 			case FF_TYPE_RED:
 			case FF_TYPE_GREEN:
 			case FF_TYPE_BLUE:    kind = "colour"; break;
@@ -1879,6 +2041,7 @@ void usage()
 		"  --presets   every preset draws something with structure in it\n"
 		"  --defaults  the constructor's defaults ARE preset 1\n"
 		"  --hosts     presets survive all three host behaviours\n"
+		"  --config    a look survives Export XML, Load XML and the host\n"
 		"  --scale     the same preset is the same drawing at every raster\n"
 		"  --guard     a hostile machine leaves no NaN on the sheet\n"
 		"  --all       every one of the above\n\n"
@@ -2032,6 +2195,7 @@ int main( int argc, char** argv )
 		run( "presets", runPresets );
 		if( wanted( "defaults" ) ) { ++ran; std::printf( "\n" ); failed += runDefaults(); }
 		if( wanted( "hosts" ) )    { ++ran; std::printf( "\n" ); failed += runHosts(); }
+		if( wanted( "config" ) )   { ++ran; std::printf( "\n" ); failed += runConfig(); }
 		if( wanted( "scale" ) )    { ++ran; std::printf( "\n" ); failed += runScale(); }
 		run( "guard", runGuard );
 

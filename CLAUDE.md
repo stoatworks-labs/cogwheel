@@ -36,6 +36,7 @@ Disable with `-DBUILD_OFX=OFF`.
 - Every preset draws something: `./build/cgtest --presets`
 - The defaults ARE preset 1: `./build/cgtest --defaults`
 - Presets survive every host behaviour: `./build/cgtest --hosts`
+- A look survives Export XML, Load XML and the host: `./build/cgtest --config`
 - The same drawing at every raster: `./build/cgtest --scale`
 - A hostile machine leaves no NaN: `./build/cgtest --guard`
 - No dead controls: `python3 tools/sweep.py` (`--size WxH`, `--jobs N`)

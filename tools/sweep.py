@@ -78,6 +78,8 @@ SKIP = {
     "Preset": "a whole machine; every other row here is one of its columns",
     "Export XML": "writes a file and touches no pixel -- the sweep asks whether a "
                   "control changes the DRAWING, and this one deliberately does not",
+    "Load XML": "a file path the host picks, not a value the sweep can set; "
+                "the round trip is what cgtest --config checks",
 }
 
 # The world every sweep starts in. The crank is wound well past the default so

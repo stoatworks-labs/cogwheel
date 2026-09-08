@@ -99,6 +99,17 @@ public:
 	/// the log, which is the only place a full path fits.
 	void ExportConfig();
 
+	/// Read a file ExportConfig wrote and put every control it names back.
+	/// #9's other half. The values are held against the host's restatements
+	/// exactly as a factory preset's are -- see hostIsRestatingItself -- and
+	/// the Preset dropdown drops to Custom, because the file is now the truth.
+	/// Never throws; a bad file is a logged failure and a display string.
+	bool LoadConfig( const std::string& path );
+
+	/// For the harness: where ExportConfig last wrote. The log has it for
+	/// people.
+	const std::string& LastExportPath() const { return lastExportPath; }
+
 	FFResult SetTextParameter( unsigned int index, const char* value ) override;
 	char* GetTextParameter( unsigned int index ) override;
 	FFResult SetTime( double time ) override;
@@ -116,6 +127,13 @@ private:
 	void seedHostValues();
 	bool hostIsRestatingItself( unsigned int index, float value );
 	float presetValue( int presetIndex, unsigned int id ) const;
+
+	/// Whether a control is something a file can set: everything an operator
+	/// can set, minus the events, the dropdown a load overrides, and the file
+	/// parameter itself.
+	static bool loadable( unsigned int id );
+	/// The id a file row's name refers to, or -1. By name, never by id.
+	int idForName( const std::string& name );
 
 	/// A source takes no input; an effect takes exactly one. Getting this wrong
 	/// is not a compile error -- the host simply files the plugin under the
@@ -144,6 +162,20 @@ private:
 	/// What the Export XML button shows: "ready" until pressed, then the
 	/// outcome. Sixteen characters is not room for a path -- see ExportConfig.
 	std::string exportNote = "ready";
+
+	/// The values the last Load XML put in place, held against the host's
+	/// restatements the way a preset's are. Tracks the operator: an edit to a
+	/// loaded control moves the held value with it. See LoadConfig.
+	float loaded[ PT_COUNT ] = {};
+	bool loadedActive        = false;
+
+	/// What the host last handed the Load XML parameter. A restatement of the
+	/// same path is not a second load -- see SetTextParameter.
+	std::string loadPath;
+	/// What the Load XML row shows: "none" until a file is chosen, then the
+	/// outcome. The path is in the log, for the same reason the export's is.
+	std::string loadNote = "none";
+	std::string lastExportPath;
 	std::string aboutText;
 
 	bool glReady        = false;

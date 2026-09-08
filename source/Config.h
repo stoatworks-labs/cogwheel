@@ -12,7 +12,9 @@
 	thing they were trying to stop doing.
 
 	So this is the half that IS possible: write every control's current value
-	to a file the operator can keep, read, diff and send to somebody else.
+	to a file the operator can keep, read, diff and send to somebody else --
+	and, since v0.3.0, read one back in through a FILE parameter, which is the
+	nearest thing FFGL has to a user preset: the file is the slot.
 
 	`Document()` is deliberately pure -- rows in, XML string out, no file
 	system -- so the harness can assert the document's shape without writing
@@ -32,6 +34,15 @@ struct Row
 	std::string  type;///< "standard", "integer", "option", "boolean", "event", "text"
 	float        value = 0.0f;
 	std::string  display;///< what the panel shows next to it, when that is a word
+};
+
+/// One control as read back from a file. Matched by NAME downstream, never by
+/// id: ids move between releases -- 0.3.0 put Fade by Figure in the middle of
+/// the list -- and a file, like a saved composition, has to survive that.
+struct Loaded
+{
+	std::string name;
+	float       value = 0.0f;
 };
 
 /// Where exports are written. Honours COGWHEEL_EXPORT_DIR, which is also how
@@ -56,5 +67,20 @@ bool Write( const std::vector< Row >& rows,
             const std::string& preset,
             std::string& pathOut,
             std::string& error );
+
+/// The inverse of `Escape`, for reading a document back.
+std::string Unescape( const std::string& text );
+
+/// Read a document `Document()` wrote. Pure: text in, rows out, no file
+/// system. Anything that is not a `<parameter>` row with a name and a number
+/// in it is ignored, so a hand-edited file still loads; text with no
+/// `<cogwheel` root at all is refused, with `error` saying so. `preset` is
+/// what the file says it was exported from, for the log.
+bool Parse( const std::string& xml, std::vector< Loaded >& rows,
+            std::string& preset, std::string& error );
+
+/// The whole of one file, as text. Returns false and fills `error` if it
+/// cannot be read or is empty.
+bool ReadFile( const std::string& path, std::string& text, std::string& error );
 
 } // namespace cogwheel::config

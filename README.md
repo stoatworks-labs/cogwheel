@@ -229,6 +229,7 @@ never mentions the plist), and then runs the harness:
 | `cgtest --presets` | every preset draws something with structure in it |
 | `cgtest --defaults` | the constructor's defaults *are* preset 1 |
 | `cgtest --hosts` | presets survive all three things a host can do with a value event |
+| `cgtest --config` | a look goes out through Export XML, comes back through Load XML, and is held against the host |
 | `cgtest --scale` | the same preset is the same drawing at 320×180 and 1280×720 |
 | `cgtest --guard` | a hostile machine leaves no NaN on the sheet |
 | `tools/sweep.py` | every parameter changes the drawing |

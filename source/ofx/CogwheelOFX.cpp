@@ -98,7 +98,9 @@
 // After the OFX Support headers, which is where the OFX types come from.
 #include "StoatworksAboutOFX.h"
 
+#include "../Config.h"
 #include "../Controls.h"
+#include "../Diag.h"
 #include "../Presets.h"
 #include "../machine/Crank.h"
 #include "../machine/Gears.h"
@@ -659,6 +661,7 @@ enum class Kind
 	Option,
 	Colour, ///< An OFX RGB param, standing in for the FFGL build's three ids.
 	Button,
+	File,   ///< A path the host picks with a browser. Load XML.
 	Absent  ///< A component of a Colour: it has no parameter of its own here.
 };
 
@@ -865,6 +868,11 @@ const Decl kDecls[] = {
 	  "read and sent to somebody else. Resolve has its own preset system, so this is "
 	  "here mainly to match the FFGL build and to produce a file the two share.",
 	  0.0f, 0.0f, 1.0f, nullptr, 0, nullptr },
+	{ PT_LOAD, Kind::File, "loadXml", "Load XML",
+	  "Read a file Export XML wrote and put every control it names back. Rows are "
+	  "matched by name, so a file from the Resolume build or from another release "
+	  "loads here too. The Preset drops to Custom, because the file is now the truth.",
+	  0.0f, 0.0f, 1.0f, nullptr, 0, nullptr },
 };
 
 static_assert( sizeof( kDecls ) / sizeof( kDecls[ 0 ] ) == PT_ABOUT_TEXT,
@@ -910,11 +918,14 @@ public:
 			case Kind::Toggle: handles[ d.id ] = fetchBooleanParam( d.name ); break;
 			case Kind::Option: handles[ d.id ] = fetchChoiceParam( d.name ); break;
 			case Kind::Colour: handles[ d.id ] = fetchRGBParam( d.name ); break;
+			case Kind::File:   handles[ d.id ] = fetchStringParam( d.name ); break;
 			case Kind::Button:
 			case Kind::Absent:
 			default: handles[ d.id ] = nullptr; break;
 			}
 		}
+
+		diag::init();
 
 		//The three colours' components hold their FFGL defaults, so that a
 		//preset comparison and `Resolve` both see the same numbers whether or
@@ -994,6 +1005,12 @@ public:
 		if( decl->id == PT_PRESET )
 		{
 			applyPreset( args );
+			return;
+		}
+
+		if( decl->id == PT_LOAD )
+		{
+			loadConfig( args );
 			return;
 		}
 
@@ -1147,6 +1164,128 @@ private:
 
 		( void )args;
 		simulatedFrame = kNoFrame;
+	}
+
+	/// The FFGL build's parameter NAME is a Decl's label here, and the file
+	/// carries those. A colour's two hidden components carry FFGL's suffixes.
+	static int idForLabel( const std::string& name )
+	{
+		if( name == "Opacity" || name == "Mix" )
+			return PT_MIX;
+		for( const Decl& d : kDecls )
+		{
+			if( d.kind == Kind::Absent || d.label == nullptr )
+				continue;
+			if( name == d.label )
+				return static_cast< int >( d.id );
+			if( d.kind == Kind::Colour )
+			{
+				const std::string base = d.label;
+				if( name == base + "_Green" )
+					return static_cast< int >( d.id + 1 );
+				if( name == base + "_Blue" )
+					return static_cast< int >( d.id + 2 );
+			}
+		}
+		return -1;
+	}
+
+	/// #9's other half. Written THROUGH the host rather than into `params`,
+	/// because in OFX the host's parameters are the state: readAll would put
+	/// anything written anywhere else back on the next frame.
+	void loadConfig( const OFX::InstanceChangedArgs& args )
+	{
+		std::string path;
+		static_cast< OFX::StringParam* >( handles[ PT_LOAD ] )->getValue( path );
+		if( path.empty() )
+			return;
+
+		std::string text;
+		std::string error;
+		std::string preset;
+		std::vector< config::Loaded > rows;
+		if( !config::ReadFile( path, text, error ) || !config::Parse( text, rows, preset, error ) )
+		{
+			diag::error( "configuration load failed: " + error );
+			return;
+		}
+
+		readAll( args.time );
+		float want[ PT_COUNT ];
+		bool touched[ PT_COUNT ] = {};
+		std::copy( params, params + PT_COUNT, want );
+
+		int applied = 0;
+		for( const config::Loaded& row : rows )
+		{
+			const int id = idForLabel( row.name );
+			if( id < 0 )
+			{
+				diag::info( "configuration row ignored, no such control: " + row.name );
+				continue;
+			}
+			if( id == PT_RESET || id == PT_EXPORT || id == PT_LOAD || id == PT_PRESET )
+				continue;
+			if( !std::isfinite( row.value ) )
+				continue;
+			want[ id ]    = row.value;
+			touched[ id ] = true;
+			++applied;
+		}
+		if( applied == 0 )
+		{
+			diag::error( "configuration load failed: nothing in " + path + " names a control" );
+			return;
+		}
+
+		applyingPreset = true;
+		beginEditBlock( "load" );
+		for( const Decl& d : kDecls )
+		{
+			const bool wanted = d.kind == Kind::Colour
+			                        ? ( touched[ d.id ] || touched[ d.id + 1 ] || touched[ d.id + 2 ] )
+			                        : touched[ d.id ];
+			if( !wanted )
+				continue;
+
+			//Clamped to the declared range, so a hand-edited file cannot put a
+			//control where no slider goes.
+			switch( d.kind )
+			{
+			case Kind::Slider:
+				static_cast< OFX::DoubleParam* >( handles[ d.id ] )->setValue(
+					std::clamp( want[ d.id ], 0.0f, 1.0f ) );
+				break;
+			case Kind::Count:
+				static_cast< OFX::IntParam* >( handles[ d.id ] )->setValue(
+					std::clamp( static_cast< int >( std::lround( want[ d.id ] ) ),
+					            static_cast< int >( d.lo ), static_cast< int >( d.hi ) ) );
+				break;
+			case Kind::Toggle:
+				static_cast< OFX::BooleanParam* >( handles[ d.id ] )->setValue( want[ d.id ] > 0.5f );
+				break;
+			case Kind::Option:
+				static_cast< OFX::ChoiceParam* >( handles[ d.id ] )->setValue(
+					std::clamp( static_cast< int >( std::lround( want[ d.id ] ) ), 0,
+					            std::max( 1, d.optionCount ) - 1 ) );
+				break;
+			case Kind::Colour:
+				static_cast< OFX::RGBParam* >( handles[ d.id ] )->setValue(
+					std::clamp( want[ d.id ], 0.0f, 1.0f ),
+					std::clamp( want[ d.id + 1 ], 0.0f, 1.0f ),
+					std::clamp( want[ d.id + 2 ], 0.0f, 1.0f ) );
+				break;
+			default:
+				break;
+			}
+		}
+		static_cast< OFX::ChoiceParam* >( handles[ PT_PRESET ] )->setValue( 0 );
+		endEditBlock();
+		applyingPreset = false;
+
+		simulatedFrame = kNoFrame;
+		diag::info( "configuration loaded from " + path + ": " + std::to_string( applied ) + " controls"
+		            + ( preset.empty() ? "" : ", exported from " + preset ) );
 	}
 
 	//-----------------------------------------------------------------------
@@ -1516,6 +1655,15 @@ void describeParams( OFX::ImageEffectDescriptor& desc, bool overVariant )
 		case Kind::Button:
 		{
 			param = desc.definePushButtonParam( d.name );
+			break;
+		}
+		case Kind::File:
+		{
+			OFX::StringParamDescriptor* p = desc.defineStringParam( d.name );
+			p->setStringType( OFX::eStringTypeFilePath );
+			p->setFilePathExists( true );
+			p->setDefault( "" );
+			param = p;
 			break;
 		}
 		default:

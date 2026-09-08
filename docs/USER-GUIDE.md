@@ -67,7 +67,7 @@ The presets are fixed — Resolume gives a plugin no way to add an entry to that
 while it is running, or to remember one between sessions. So there is no "save preset"
 button, and there cannot be one.
 
-What there is, new in v0.2.0, is **Export XML**, next to the dropdown. It writes every
+What there is instead is a pair of controls next to the dropdown. **Export XML** writes every
 control's current value to a timestamped file:
 
     ~/Documents/cogwheel/cogwheel-20260901-152822.xml
@@ -80,10 +80,26 @@ file is worth reading as well as keeping:
 <parameter id="8" name="Speed" type="standard" value="0.737000" display="1.63 turns/s"/>
 ```
 
-It is a record, not a recall — nothing loads it back. Use it to keep a look you like, to
-send one to somebody, or to read the numbers off and type them in again. The full path is
-written to the diagnostics log each time, because sixteen characters of parameter display
-is not room for one.
+**Load XML**, new in v0.3.0, reads one back. It is a file picker: choose a file and every
+control the file names is set from it, the sheet is wiped for the new machine, and the Preset
+dropdown drops to **Custom**, because the file is now the truth. The row next to it says
+`loaded`, or `failed - see log`. The full path — and any row the plugin could not place — goes
+to the diagnostics log, because sixteen characters of parameter display is not room for one.
+
+Three things worth knowing:
+
+- **Rows are matched by name, never by number.** A file written by the source loads into the
+  effect and back, and a file from an earlier release still loads even though the controls have
+  been renumbered since. A row naming a control that does not exist is skipped and logged.
+- **Choosing the same file a second time does nothing.** A file is applied when the path
+  *changes*, so a host that restates the same path every frame does not wipe the sheet every
+  frame. To re-apply a file you have edited, pick a different one and then it again.
+- **A loaded file is held the way a preset is.** Resolume goes on pushing the slider values it
+  believed before the load; the plugin recognises those as the host repeating itself rather
+  than as you editing, and keeps the file's values until you actually move something.
+
+The About block and the buttons are not settings and are not loaded, and a hand-edited value
+outside a control's range is clamped to the range rather than applied.
 
 Moving any control a preset covers drops the dropdown back to **Custom**. That is the preset
 letting go, not an error.
@@ -254,6 +270,10 @@ Two things behave differently there, both stated rather than hidden:
   forwards.
 
 **Sync** works off a fixed 120 bpm in OpenFX, because OFX carries no transport tempo.
+
+**Export XML** and **Load XML** are here too. Resolve has its own presets, so they exist mainly to
+share a look with the Resolume build: a file written by either loads in the other. In an OpenFX
+host Load XML is a file path with a browse button.
 
 ---
 

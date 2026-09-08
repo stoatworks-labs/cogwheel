@@ -332,3 +332,68 @@ give twelve lobes in five turns and `--closure` says so.
   1m54s and its artifact is what was tested on win-lab; the macOS job builds and
   passes the invariants and the preset check. `release.yml` has still never
   executed.
+
+---
+
+## 2026-09-08 — v0.3.0: Fade by Figure, and the way back for #9
+
+Two open issues, both from the same operator, both answered in one release.
+
+### Fade by Figure (#7)
+
+The ask was for the previous figure to hold and then fade *as one thing* once
+the next starts, rather than the line fading continuously as it is drawn. The
+cheap design — hold the fade off while the pen is down, run it when the pen
+lifts — was the first thing tried and it does not work, for a reason worth
+writing down: **the pen is down for every frame of a drawing.** The lift
+between figures is a `Run` boundary inside `Crank::completeFigure` and takes no
+time, so a fade gated on the pen is a fade that never runs, and applying a
+whole figure's worth of fade at the closure instead is a step, not a fade.
+
+So the sheet is split in two while the switch is on: `settled` holds every
+figure that has closed and is the only thing the fade touches; `paper` holds
+the figure in progress and is left alone until it closes, when a compose pass
+with `glBlendFunc( GL_ONE, GL_ONE )` folds it in. The sheet pass sums the two
+textures. That sum is *exact* rather than an approximation of the single-buffer
+case, because these are absorptions and absorptions add — the same fact that
+makes the ink pass sum instead of max. Cost: one more `RGBA32F` buffer, only
+while the switch is on.
+
+`cgtest --figurefade` guards the way back. Turning the switch off has to fold
+the settled sheet onto the paper, or every closed figure vanishes the instant
+the operator changes their mind — and with Wipe on, deleting that fold-back
+entirely still passed, because a run that stops just after a wipe has nothing to
+lose. The check turns Wipe off for exactly that reason.
+
+### Load XML (#9)
+
+The reporter wanted to *load* the export, not just keep it. FFGL cannot add a
+dropdown entry to a running plugin, but it does have `FF_TYPE_FILE`, which
+Resolume shows as a file picker filtered to the extension and hands to
+`SetTextParameter` as a path. That is the nearest thing the format has to a
+user preset: the file is the slot.
+
+Three decisions:
+
+- **Rows match by name, never by id.** Fade by Figure went into the middle of
+  the enum this release and shifted every id after it; a v0.2.x export loads
+  regardless. (Resolume matches saved compositions by name too — vectrix
+  proved it — so the old "never renumber a released id" note in `Controls.h`
+  was wrong and has been corrected.)
+- **A loaded file is held exactly as a preset is.** `presetValue()` answers
+  from the loaded array when the dropdown says Custom, so
+  `hostIsRestatingItself` swallows the host's restatement of its old sliders
+  and lets a genuine edit through. The held value follows the operator: an edit
+  to a loaded control moves it, or dragging back through the file's own value
+  would be read as the host repeating itself.
+- **The same path twice is not a second load.** The SDK sets every text
+  parameter at instantiation and a host may restate a path every frame; only a
+  *changed* path loads, or the sheet would be wiped per frame.
+
+`cgtest --config` is the round trip — export on one instance, load on a fresh
+one, then the three host behaviours `--hosts` checks, an operator edit, a
+preset taking over, a file with every id wrong, and a file that is not ours.
+
+The OFX build has the same control as a string parameter with
+`eStringTypeFilePath`, written *through* the host's parameters because there
+the host's parameters are the state.
