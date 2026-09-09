@@ -10,7 +10,7 @@
 > that ships. A control sweep fails if any parameter turns out to do nothing —
 > it found one on the first run. Both plugins have since been **loaded into
 > Resolume Arena 7.27.1 on macOS and on Windows** — they register with the right
-> names, ids and categories, expose all 48 controls with nothing truncated,
+> names, ids and categories, expose all 49 controls with nothing truncated,
 > render, and hold a factory preset through live rendering. The OpenFX build has
 > been loaded by **DaVinci Resolve Studio 21.0.2.4**, which lists both plugins in
 > its OpenFX library, and renders correctly through an independent OFX host. It
@@ -26,6 +26,8 @@ carried along for the ride. That is the whole machine, and everything the plugin
 does falls out of it.
 
 **Video:** [What it does, in 68 seconds](https://www.youtube.com/watch?v=_epebasO_is)
+
+**Seen in the wild:** [VJPandaAU's set, cranking the pen hole live in Resolume](https://www.youtube.com/watch?v=LDlGKthrdzc) — shared with permission.
 
 <!-- downloads:start -->
 

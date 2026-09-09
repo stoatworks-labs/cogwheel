@@ -132,6 +132,11 @@ positions, which is what a real wheel offers.
 **Mesh** decides whether the wheel runs round the inside of the ring (a rosette) or the outside
 (a petal shape).
 
+A wheel as big as the ring, or bigger, cannot run round the *inside* of it — there is nowhere for
+it to go — so with Mesh on *Inside* and 100 wheel teeth against 96 ring teeth nothing is drawn.
+The two controls say so as you drag them: the Ring reads `too small` and the Wheel reads
+`too big`. Set Mesh to *Outside*, where a big wheel is fine, or choose a smaller wheel.
+
 ---
 
 ## Why a drawing stops, and what to do about it
@@ -172,7 +177,7 @@ makes it broader rather than blurrier.
 resolution. **Pressure** is how much a pressed nib spreads.
 
 **Pens** chooses what the layers are drawn with — *Four Pens* is the set that came in the box.
-*Ink Colour* uses the single **Ink** swatch instead.
+*Ink Colour* uses the **Ink Red**, **Ink Green** and **Ink Blue** sliders instead.
 
 ---
 
@@ -190,6 +195,17 @@ Two consequences worth knowing:
 - **Ink can only ever darken paper.** A pale line on a dark ground is not something the machine
   can make. **Print → Negative** is the honest route to it: a drawing, photographed and printed
   the other way up.
+- **Black paper hides the drawing.** Turn the **Paper** sliders down to black and the ink has
+  nothing to darken, so the whole sheet goes black — which is Beer's law, not a fault. If what
+  you wanted was to key the paper out and composite the line over other layers, that is what
+  **Clear Paper** is for.
+
+**Clear Paper** takes the paper away altogether. The output is the ink on a clear sheet, with an
+alpha channel: composite it over anything in Resolume and the line shows in its own colour, a
+black pen darkens whatever is behind it exactly as ink would, and over white you get precisely the
+drawing on white paper. The paper colour, **Grain** and **Paper from Clip** do not apply while it
+is on, because there is no paper. On the effect the ink goes over the clip and the clip keeps its
+own alpha.
 
 **Grain** is how much of the paper's tooth you can see. **Tooth** is a different question — how
 unevenly the sheet *takes* ink. Smooth board takes ink evenly and shows no grain; cartridge does
@@ -291,10 +307,18 @@ radius as a fraction of the frame height, so at 1.0 the ring exactly fills it.
 
 **The lines look polygonal.** **Detail** is on *Draft*. Move it to *Normal*.
 
+**Nothing draws, and Wheel Teeth reads `too big`.** The wheel is as big as the ring or bigger and
+**Mesh** is on *Inside*. Set Mesh to *Outside* or choose a smaller wheel. The log says the same.
+
+**Everything went black when I set the paper to black.** Ink only darkens paper, so on black paper
+there is nothing to see. Use **Clear Paper** to key the sheet out, or **Print → Negative** for a
+pale line on a dark ground.
+
 **Nothing appears at all in Resolume.** Check `~/Library/Logs/cogwheel/` (macOS) or
 `%LOCALAPPDATA%\cogwheel\logs\` (Windows). A shader that will not compile, or a sheet that would
 not allocate, both look like "it does nothing" from outside and both say so there.
 
 **A control does nothing.** Some are conditional: **Skip Size** needs **Skip Chance** above zero,
-**On Closing** and **Pens** need **Layers** above one, **Ink** only applies when **Pens** is set
-to *Ink Colour*, and **Ink from Clip** / **Paper from Clip** exist only on the effect.
+**On Closing** and **Pens** need **Layers** above one, the **Ink** sliders only apply when
+**Pens** is set to *Ink Colour*, and **Ink from Clip** / **Paper from Clip** exist only on the
+effect.

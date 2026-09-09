@@ -386,6 +386,8 @@ uniform float PaperFromClip; //1 when the footage is the sheet the pen draws on
 uniform float PaperGrain;    //visible tooth, distinct from the deposit tooth
 uniform float ToothScale;
 uniform float Negative;      //show the drawing photographed and printed inverted
+uniform float ClearPaper;    //1 for no paper at all: the ink over a clear sheet, with alpha
+uniform float HasClip;       //1 on the effect build, where ClipTexture is footage and not the blank texel
 
 uniform float Opacity;
 uniform float Passthrough;   //1 when the plugin should get out of the way
@@ -464,14 +466,35 @@ void main()
 		sheet *= paperTooth( paper, PaperGrain * 0.5, ToothScale );
 
 	//Beer's law. The one line the whole renderer exists to be able to write.
-	vec3 drawn = sheet * exp( -density );
+	vec3 transmit = exp( -density );
+	vec3 drawn    = sheet * transmit;
+
+	//No paper. What the ink stops is the alpha, and what it lets through is
+	//carried as premultiplied colour, so that composited over WHITE this is
+	//exactly the drawing on white paper and composited over BLACK the line
+	//shows in its own colour. A black pen has no colour to show and comes out
+	//as a pure multiply of whatever is behind it, which is what ink does. The
+	//coverage is taken from the channel the ink stops most, because a red pen
+	//stops all of the green and blue and none of the red, and its line is as
+	//present as its green and blue say it is.
+	//
+	//Premultiplied throughout, which is what the host composites and what the
+	//Opacity multiply at the end already assumed.
+	float coverage = 1.0 - min( transmit.r, min( transmit.g, transmit.b ) );
+	float alpha    = 1.0;
+	if( ClearPaper > 0.5 )
+	{
+		alpha = coverage;
+		drawn = transmit - ( 1.0 - coverage );
+	}
 
 	//The print. Ink only subtracts, so a pale line on a dark ground is not
 	//something the machine can make -- but a negative of a drawing that could
 	//be made is, and that is what this is. Applied before the gear overlay, so
 	//the overlay keeps the colour it was given rather than being inverted with
-	//everything else.
-	drawn = mix( drawn, vec3( 1.0 ) - drawn, clamp( Negative, 0.0, 1.0 ) );
+	//everything else. On a clear sheet it inverts the ink within its own
+	//coverage: the line changes colour, the sheet stays clear.
+	drawn = mix( drawn, vec3( alpha ) - drawn, clamp( Negative, 0.0, 1.0 ) );
 
 	//---------------------------------------------------------------------
 	// The gears.
@@ -511,18 +534,31 @@ void main()
 		float armMask = lineMask( length( rel - armDir * t ), width * 0.6 );
 
 		float gear = max( max( ring, wheel ), max( pen, armMask ) ) * GearLevel;
+		//An opaque overlay over a premultiplied sheet: where the gear is, the
+		//gear is, and on a clear sheet it is as present as it is drawn.
 		drawn = mix( drawn, GearColour, gear );
+		alpha = mix( alpha, 1.0, gear );
 	}
 
 	//---------------------------------------------------------------------
 	// Out.
 	//---------------------------------------------------------------------
 	//
+	// On a clear sheet the effect build composites the ink OVER the clip and
+	// keeps the clip's own alpha underneath, rather than replacing the clip
+	// with paper. The source build's clip is the blank white texel, which
+	// this multiplies away to nothing, so the source just emits the ink.
+	if( ClearPaper > 0.5 && HasClip > 0.5 )
+	{
+		drawn = drawn + clip * ( 1.0 - alpha );
+		alpha = alpha + clipAlpha * ( 1.0 - alpha );
+	}
+
 	// Passthrough is exact by construction: at 1 the clip leaves untouched,
 	// including its alpha, whatever every other control says. That is what
 	// makes Mix at zero a guarantee rather than an approximation.
 	vec3 outColour = mix( drawn, clip, Passthrough );
-	float outAlpha = mix( 1.0, clipAlpha, Passthrough );
+	float outAlpha = mix( alpha, clipAlpha, Passthrough );
 
 	fragColor = vec4( outColour, outAlpha ) * Opacity;
 }

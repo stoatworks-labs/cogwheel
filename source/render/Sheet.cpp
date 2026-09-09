@@ -260,14 +260,11 @@ bool Sheet::Render( const std::vector< Step >& steps, const std::vector< Run >& 
 			quad.Draw();
 		}
 
-		// Fade first and fold in second, so a figure joins the pile at full
-		// strength and starts fading on the frame after it closed rather than
-		// on the one it closed in.
-		if( params.figuresClosed > 0 )
-		{
-			Compose( paper, settled );
-			paper.ClearTo( 0.0f, 0.0f, 0.0f, 0.0f );
-		}
+		// The fold-in of a figure that has closed happens in the ink pass below,
+		// at the run that closed it -- not here, before any of this frame's
+		// strokes are down. Fade first and fold in second, so a figure joins
+		// the pile at full strength and starts fading on the frame after it
+		// closed rather than on the one it closed in.
 	}
 	else if( settledInUse )
 	{
@@ -295,8 +292,13 @@ bool Sheet::Render( const std::vector< Step >& steps, const std::vector< Run >& 
 	}
 
 	//-----------------------------------------------------------------------
-	// 1 and 2. Fade, then deposit, into the same target.
+	// 1. Fade, into the paper.
+	//
+	// Not when fading by figure: there the fade has already been applied, to
+	// the settled sheet, and this buffer is the one figure that must not
+	// receive it.
 	//-----------------------------------------------------------------------
+	if( fading && !byFigure )
 	{
 		ScopedFBOBinding fbo( paper.GetGLID(), ScopedFBOBinding::RB_REVERT );
 
@@ -305,83 +307,125 @@ bool Sheet::Render( const std::vector< Step >& steps, const std::vector< Run >& 
 		// the host's output, in a buffer that may be a different size.
 		glViewport( 0, 0, sheetWidth, sheetHeight );
 
-		// Not when fading by figure: there the fade has already been applied,
-		// to the settled sheet, and this buffer is the one figure that must not
-		// receive it.
-		if( fading && !byFigure )
+		setMultiplyBlend();
+		ScopedShaderBinding shader( fadeShader.GetGLID() );
+		fadeShader.Set( "Retain", retain );
+		quad.Draw();
+	}
+
+	//-----------------------------------------------------------------------
+	// 2. Deposit, into the same target.
+	//
+	// Runs [from, to) of this frame, as one draw call per run.
+	//-----------------------------------------------------------------------
+	auto inkRuns = [ & ]( size_t from, size_t to ) {
+		if( from >= to || params.flow <= 0.0f )
+			return;
+
+		ScopedFBOBinding fbo( paper.GetGLID(), ScopedFBOBinding::RB_REVERT );
+		glViewport( 0, 0, sheetWidth, sheetHeight );
+
+		// Sum, not max(). Two strokes crossing the same texel really did put
+		// twice the pigment there, and a max() would throw away every crossing
+		// in the figure -- which is exactly where a spirograph drawing is
+		// darkest.
+		setAdditiveBlend();
+
+		ScopedShaderBinding shader( inkShader.GetGLID() );
+
+		inkShader.Set( "Flow", params.flow );
+		inkShader.Set( "PerDistance", params.perDistance ? 1.0f : 0.0f );
+		inkShader.Set( "NibSigma", std::max( params.nibSigma, 1.0e-5f ) );
+		inkShader.Set( "NibSpread", std::max( params.nibSpread, 0.0f ) );
+		inkShader.Set( "DensityFloor", std::max( params.densityFloor, 0.0f ) );
+		inkShader.Set( "Scale", std::max( params.scale, 1.0e-4f ) );
+		inkShader.Set( "Centre", params.centre[ 0 ], params.centre[ 1 ] );
+		inkShader.Set( "SheetAspect", sheetAspect );
+		inkShader.Set( "Tooth", std::max( params.tooth, 0.0f ) );
+		inkShader.Set( "ToothScale", std::max( params.toothScale, 1.0f ) );
+		inkShader.Set( "MaxUV", maxU, maxV );
+
+		const bool clipInk = params.inkFromClip && clipTexture != 0;
+		inkShader.Set( "InkFromClip", clipInk ? 1.0f : 0.0f );
+		inkShader.Set( "ClipTexture", 0 );
+		glActiveTexture( GL_TEXTURE0 );
+		glBindTexture( GL_TEXTURE_2D, clipOrBlank );
+
+		glBindVertexArray( inkVAO );
+
+		for( size_t r = from; r < to; ++r )
 		{
-			setMultiplyBlend();
-			ScopedShaderBinding shader( fadeShader.GetGLID() );
-			fadeShader.Set( "Retain", retain );
-			quad.Draw();
+			const Run& run     = runs[ r ];
+			const int segments = run.count - 1;
+			if( segments <= 0 )
+				continue;
+
+			// Instance i of this run reads steps first+i and first+i+1, so the
+			// highest index touched is first + count - 1. Asserted here, at
+			// the draw, because this is where getting it wrong costs something:
+			// one instance too many reads a Step past the end of the run,
+			// which on most drivers returns zeroes and on some returns whatever
+			// was there -- a stroke from the end of one figure to somewhere
+			// arbitrary, on some machines and not others.
+			assert( static_cast< size_t >( run.first + run.count ) <= steps.size()
+			        && "a run runs past the end of the step block" );
+
+			float absorb[ 3 ];
+			Absorption( run.colour, absorb );
+			inkShader.Set( "InkAbsorb", absorb[ 0 ], absorb[ 1 ], absorb[ 2 ] );
+
+			// The base vertex is expressed as an attribute offset rather than
+			// with glDrawArraysInstancedBaseInstance, which is GL 4.2 and macOS
+			// caps at 4.1.
+			glBindBuffer( GL_ARRAY_BUFFER, inkVBO );
+			const size_t base = static_cast< size_t >( run.first ) * sizeof( Step );
+			glVertexAttribPointer( 0, 4, GL_FLOAT, GL_FALSE, sizeof( Step ),
+			                       reinterpret_cast< const GLvoid* >( base ) );
+			glVertexAttribPointer( 1, 4, GL_FLOAT, GL_FALSE, sizeof( Step ),
+			                       reinterpret_cast< const GLvoid* >( base + sizeof( Step ) ) );
+
+			glDrawArraysInstanced( GL_TRIANGLE_STRIP, 0, 4, segments );
 		}
 
-		if( !runs.empty() && params.flow > 0.0f )
+		glBindBuffer( GL_ARRAY_BUFFER, 0 );
+		glBindVertexArray( 0 );
+		glBindTexture( GL_TEXTURE_2D, 0 );
+	};
+
+	if( !byFigure )
+	{
+		inkRuns( 0, runs.size() );
+	}
+	else
+	{
+		// The frame a figure closes in holds that figure's last stroke AND the
+		// next figure's first, and they go to different sheets. So the runs are
+		// drawn up to and including each closing one, that figure is folded
+		// into the settled sheet, the paper is cleared, and the rest of the
+		// frame is drawn onto the fresh paper as the start of the next figure.
+		//
+		// Folding in before ANY of the frame was drawn -- which is what this
+		// did until #14 -- put the closing stroke on the new figure's paper,
+		// where it sat unfaded until that figure closed in turn: a dot at the
+		// starting point of every figure, outliving the rest of its line.
+		size_t from = 0;
+		while( from < runs.size() )
 		{
-			// Sum, not max(). Two strokes crossing the same texel really did
-			// put twice the pigment there, and a max() would throw away every
-			// crossing in the figure -- which is exactly where a spirograph
-			// drawing is darkest.
-			setAdditiveBlend();
+			size_t to = from;
+			while( to < runs.size() && !runs[ to ].closes )
+				++to;
+			const bool closed = to < runs.size();
+			if( closed )
+				++to;// the closing run itself belongs to the figure that closed
 
-			ScopedShaderBinding shader( inkShader.GetGLID() );
+			inkRuns( from, to );
 
-			inkShader.Set( "Flow", params.flow );
-			inkShader.Set( "PerDistance", params.perDistance ? 1.0f : 0.0f );
-			inkShader.Set( "NibSigma", std::max( params.nibSigma, 1.0e-5f ) );
-			inkShader.Set( "NibSpread", std::max( params.nibSpread, 0.0f ) );
-			inkShader.Set( "DensityFloor", std::max( params.densityFloor, 0.0f ) );
-			inkShader.Set( "Scale", std::max( params.scale, 1.0e-4f ) );
-			inkShader.Set( "Centre", params.centre[ 0 ], params.centre[ 1 ] );
-			inkShader.Set( "SheetAspect", sheetAspect );
-			inkShader.Set( "Tooth", std::max( params.tooth, 0.0f ) );
-			inkShader.Set( "ToothScale", std::max( params.toothScale, 1.0f ) );
-			inkShader.Set( "MaxUV", maxU, maxV );
-
-			const bool clipInk = params.inkFromClip && clipTexture != 0;
-			inkShader.Set( "InkFromClip", clipInk ? 1.0f : 0.0f );
-			inkShader.Set( "ClipTexture", 0 );
-			glActiveTexture( GL_TEXTURE0 );
-			glBindTexture( GL_TEXTURE_2D, clipOrBlank );
-
-			glBindVertexArray( inkVAO );
-
-			for( const Run& run : runs )
+			if( closed )
 			{
-				const int segments = run.count - 1;
-				if( segments <= 0 )
-					continue;
-
-				// Instance i of this run reads steps first+i and first+i+1, so
-				// the highest index touched is first + count - 1. Asserted here,
-				// at the draw, because this is where getting it wrong costs
-				// something: one instance too many reads a Step past the end of
-				// the run, which on most drivers returns zeroes and on some
-				// returns whatever was there -- a stroke from the end of one
-				// figure to somewhere arbitrary, on some machines and not others.
-				assert( static_cast< size_t >( run.first + run.count ) <= steps.size()
-				        && "a run runs past the end of the step block" );
-
-				float absorb[ 3 ];
-				Absorption( run.colour, absorb );
-				inkShader.Set( "InkAbsorb", absorb[ 0 ], absorb[ 1 ], absorb[ 2 ] );
-
-				// The base vertex is expressed as an attribute offset rather
-				// than with glDrawArraysInstancedBaseInstance, which is GL 4.2
-				// and macOS caps at 4.1.
-				glBindBuffer( GL_ARRAY_BUFFER, inkVBO );
-				const size_t base = static_cast< size_t >( run.first ) * sizeof( Step );
-				glVertexAttribPointer( 0, 4, GL_FLOAT, GL_FALSE, sizeof( Step ),
-				                       reinterpret_cast< const GLvoid* >( base ) );
-				glVertexAttribPointer( 1, 4, GL_FLOAT, GL_FALSE, sizeof( Step ),
-				                       reinterpret_cast< const GLvoid* >( base + sizeof( Step ) ) );
-
-				glDrawArraysInstanced( GL_TRIANGLE_STRIP, 0, 4, segments );
+				Compose( paper, settled );
+				paper.ClearTo( 0.0f, 0.0f, 0.0f, 0.0f );
 			}
-
-			glBindBuffer( GL_ARRAY_BUFFER, 0 );
-			glBindVertexArray( 0 );
-			glBindTexture( GL_TEXTURE_2D, 0 );
+			from = to;
 		}
 	}
 
@@ -419,6 +463,8 @@ bool Sheet::Render( const std::vector< Step >& steps, const std::vector< Run >& 
 		sheetShader.Set( "PaperGrain", std::max( params.paperGrain, 0.0f ) );
 		sheetShader.Set( "ToothScale", std::max( params.toothScale, 1.0f ) );
 		sheetShader.Set( "Negative", params.negative ? 1.0f : 0.0f );
+		sheetShader.Set( "ClearPaper", params.clearPaper ? 1.0f : 0.0f );
+		sheetShader.Set( "HasClip", clipTexture != 0 ? 1.0f : 0.0f );
 
 		sheetShader.Set( "Opacity", std::clamp( params.opacity, 0.0f, 1.0f ) );
 		sheetShader.Set( "Passthrough", clipTexture != 0 ? std::clamp( params.passthrough, 0.0f, 1.0f ) : 0.0f );

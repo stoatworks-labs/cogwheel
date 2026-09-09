@@ -181,6 +181,10 @@ private:
 	bool glReady        = false;
 	bool clearRequested = true;
 	double lastHostTime = -1.0;
+
+	/// Whether the last frame's train could be threaded. Kept so the log gets
+	/// one line when that changes rather than one a frame -- see ProcessOpenGL.
+	bool trainUsable = true;
 };
 
 } // namespace cogwheel

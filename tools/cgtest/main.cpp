@@ -15,6 +15,7 @@
         --beer      two pens crossing multiply, they do not add
         --liveness  the defaults keep drawing; a stiff machine provably stops
         --figurefade turning Fade by Figure off does not lose the drawing
+        --settle    the frame a figure closes in puts its last stroke with that figure
         --presets   every preset draws something with structure in it
         --defaults  the constructor's defaults ARE preset 1
         --hosts     presets survive all three host behaviours
@@ -692,6 +693,132 @@ int runFigureFade( const Target& target )
 	const double drop = frozen > 0.0 ? ( frozen - rejoined ) / frozen : 1.0;
 	const bool ok = frozen > 0.0 && std::fabs( drop ) < 0.05;
 	std::printf( "\n  %+.2f%% across the switch  %s\n", -100.0 * drop, ok ? "PASS" : "FAIL" );
+	return ok ? 0 : 1;
+}
+
+//---------------------------------------------------------------------------
+// --settle
+//---------------------------------------------------------------------------
+//
+// Driven through `Sheet` directly, like --beer, because the claim is about one
+// specific frame: the frame a figure closes in. That frame holds the closing
+// figure's last stroke AND the next figure's first, and when fading by figure
+// they must land on different sheets -- the last stroke settles with its own
+// figure and fades, the first stroke stays on the paper and does not. #14 was
+// the whole frame being drawn onto the fresh paper AFTER the fold-in, which
+// left every figure's last frame's-worth of line unfaded at its starting point.
+//
+// Two strokes on opposite sides of the sheet, in one frame, the left one's run
+// marked as closing. Then empty frames under a fade fast enough to take the
+// settled sheet to nothing. What is left on the left must be gone; what is
+// left on the right must be exactly what was drawn.
+int runSettle( const Target& target )
+{
+	std::printf( "settle -- the frame a figure closes in puts its last stroke with that figure\n\n" );
+
+	Sheet sheet;
+	if( !sheet.InitGL() )
+		return 1;
+
+	std::vector< Step > steps;
+	std::vector< Run > runs;
+
+	const int count = 64;
+	auto addRun = [ & ]( float x0, float y0, float x1, float y1, bool closes ) {
+		Run run;
+		run.first  = static_cast< int >( steps.size() );
+		run.count  = count;
+		run.closes = closes;
+		run.colour[ 0 ] = run.colour[ 1 ] = run.colour[ 2 ] = 0.5f;
+		for( int i = 0; i < count; ++i )
+		{
+			const float t = static_cast< float >( i ) / static_cast< float >( count - 1 );
+			Step s;
+			s.x   = x0 + ( x1 - x0 ) * t;
+			s.y   = y0 + ( y1 - y0 ) * t;
+			s.ink = 1.0f;
+			s.dt  = ( i + 1 < count ) ? ( 1.0f / static_cast< float >( count - 1 ) ) : 0.0f;
+			steps.push_back( s );
+		}
+		runs.push_back( run );
+	};
+
+	Sheet::RenderParams params;
+	params.flow       = 0.06f;
+	params.nibSigma   = 0.02f;
+	params.nibSpread  = 0.0f;
+	params.tooth      = 0.0f;
+	params.paperGrain = 0.0f;
+	params.scale      = 1.0f;
+	params.paperColour[ 0 ] = params.paperColour[ 1 ] = params.paperColour[ 2 ] = 1.0f;
+	params.gearLevel    = 0.0f;
+	params.opacity      = 1.0f;
+	params.frameSeconds = 1.0f / 60.0f;
+	//A fade with a time constant of a twentieth of a second: after a second of
+	//empty frames the settled sheet has been multiplied down by e^-20.
+	params.fadeSeconds  = 0.05f;
+	params.fadeByFigure = true;
+
+	const GLint viewport[ 4 ] = { 0, 0, target.width, target.height };
+	Geometry geometry;// unused: the overlay is off
+
+	auto render = [ & ]() {
+		glBindFramebuffer( GL_FRAMEBUFFER, target.fbo );
+		glViewport( 0, 0, target.width, target.height );
+		glClearColor( 0.0f, 0.0f, 0.0f, 0.0f );
+		glClear( GL_COLOR_BUFFER_BIT );
+		sheet.Render( steps, runs, geometry, 0.0, 0.0, params, target.fbo, viewport, 0, 1.0f, 1.0f );
+	};
+
+	//The closing frame: a stroke on the left that ends its figure, then a
+	//stroke on the right that starts the next one.
+	addRun( -1.2f, -0.5f, -1.2f, 0.5f, true );
+	addRun( 1.2f, -0.5f, 1.2f, 0.5f, false );
+	params.clearSheet = true;
+	render();
+	params.clearSheet = false;
+
+	float leftDrawn[ 3 ], rightDrawn[ 3 ];
+	{
+		const std::vector< float > frame = readFloats( target );
+		samplePixel( frame, target.width, target.height, 0.5f - 1.2f / ( 2.0f * static_cast< float >( target.width ) / static_cast< float >( target.height ) ), 0.5f, leftDrawn );
+		samplePixel( frame, target.width, target.height, 0.5f + 1.2f / ( 2.0f * static_cast< float >( target.width ) / static_cast< float >( target.height ) ), 0.5f, rightDrawn );
+	}
+
+	//A second of nothing.
+	steps.clear();
+	runs.clear();
+	for( int i = 0; i < 60; ++i )
+		render();
+
+	float leftLater[ 3 ], rightLater[ 3 ];
+	{
+		const std::vector< float > frame = readFloats( target );
+		samplePixel( frame, target.width, target.height, 0.5f - 1.2f / ( 2.0f * static_cast< float >( target.width ) / static_cast< float >( target.height ) ), 0.5f, leftLater );
+		samplePixel( frame, target.width, target.height, 0.5f + 1.2f / ( 2.0f * static_cast< float >( target.width ) / static_cast< float >( target.height ) ), 0.5f, rightLater );
+	}
+
+	sheet.DeInitGL();
+
+	std::printf( "  stroke    drawn     a second later\n" );
+	std::printf( "  closing   %.4f    %.4f\n", leftDrawn[ 0 ], leftLater[ 0 ] );
+	std::printf( "  starting  %.4f    %.4f\n", rightDrawn[ 0 ], rightLater[ 0 ] );
+
+	//Both strokes were actually drawn (transmission well under 1), the closing
+	//one has faded back to paper, and the starting one has not moved at all.
+	const bool drawnOk    = leftDrawn[ 0 ] < 0.9f && rightDrawn[ 0 ] < 0.9f;
+	const bool closingOk  = leftLater[ 0 ] > 0.999f;
+	const bool startingOk = std::fabs( rightLater[ 0 ] - rightDrawn[ 0 ] ) < 1.0e-3f;
+
+	if( !drawnOk )
+		std::printf( "\n  a stroke was not drawn at all -- the sample points are off the line\n" );
+	if( !closingOk )
+		std::printf( "\n  the closing stroke did not fade: it was drawn onto the next figure's paper (#14)\n" );
+	if( !startingOk )
+		std::printf( "\n  the starting stroke faded: it was folded in with the figure that closed\n" );
+
+	const bool ok = drawnOk && closingOk && startingOk;
+	std::printf( "\n  %s\n", ok ? "PASS" : "FAIL" );
 	return ok ? 0 : 1;
 }
 
@@ -2038,6 +2165,7 @@ void usage()
 		"  --beer      two pens crossing multiply, they do not add\n"
 		"  --liveness  the defaults keep drawing; a stiff machine stops\n"
 		"  --figurefade  turning Fade by Figure off does not lose the drawing\n"
+		"  --settle    the frame a figure closes in puts its last stroke with that figure\n"
 		"  --presets   every preset draws something with structure in it\n"
 		"  --defaults  the constructor's defaults ARE preset 1\n"
 		"  --hosts     presets survive all three host behaviours\n"
@@ -2192,6 +2320,7 @@ int main( int argc, char** argv )
 		run( "beer", runBeer );
 		run( "liveness", runLiveness );
 		run( "figurefade", runFigureFade );
+		run( "settle", runSettle );
 		run( "presets", runPresets );
 		if( wanted( "defaults" ) ) { ++ran; std::printf( "\n" ); failed += runDefaults(); }
 		if( wanted( "hosts" ) )    { ++ran; std::printf( "\n" ); failed += runHosts(); }

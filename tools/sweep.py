@@ -126,9 +126,9 @@ CONTEXT = {
     # -- the pen ---------------------------------------------------------
     # The Ink colour is only the pen when the set is Ink Colour; under Four
     # Pens it is correctly ignored.
-    "Ink": {"Pens": 0},
-    "Ink_Green": {"Pens": 0},
-    "Ink_Blue": {"Pens": 0},
+    "Ink Red": {"Pens": 0},
+    "Ink Green": {"Pens": 0},
+    "Ink Blue": {"Pens": 0},
 
     # -- the paper -------------------------------------------------------
     # A fade needs time to have faded something.
@@ -145,9 +145,9 @@ CONTEXT = {
     "Paper from Clip": {"_effect": True},
 
     # -- the overlay -----------------------------------------------------
-    "Gear Tint": {"Show Gears": 1.0},
-    "Gear Tint_Green": {"Show Gears": 1.0},
-    "Gear Tint_Blue": {"Show Gears": 1.0},
+    "Gear Tint Red": {"Show Gears": 1.0},
+    "Gear Tint Green": {"Show Gears": 1.0},
+    "Gear Tint Blue": {"Show Gears": 1.0},
 }
 
 

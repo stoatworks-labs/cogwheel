@@ -203,6 +203,9 @@ Resolved Resolve( const float* p, double bpm, bool overInput )
 	r.render.paperColour[ 0 ] = std::clamp( p[ PT_PAPER_R ], 0.0f, 1.0f );
 	r.render.paperColour[ 1 ] = std::clamp( p[ PT_PAPER_G ], 0.0f, 1.0f );
 	r.render.paperColour[ 2 ] = std::clamp( p[ PT_PAPER_B ], 0.0f, 1.0f );
+	//Both builds: a source with no paper is the point (#15), and an effect with
+	//no paper draws the ink over the clip while keeping the clip's own alpha.
+	r.render.clearPaper       = boolean( p[ PT_PAPER_CLEAR ] );
 	r.render.paperGrain       = Linear( p[ PT_GRAIN ], 0.0f, 1.0f );
 	r.render.tooth            = Linear( p[ PT_TOOTH ], 0.0f, 0.9f );
 	r.render.toothScale       = 220.0f;

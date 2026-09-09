@@ -80,6 +80,9 @@ enum ParamId : unsigned int
 	PT_PAPER_G,
 	PT_PAPER_B,
 	PT_PAPER_FROM_CLIP,
+	// Inserted here in 0.4.0, mid-list, which is safe: Resolume and the XML
+	// export both match by name. See Sheet::RenderParams::clearPaper.
+	PT_PAPER_CLEAR,
 	PT_GRAIN,
 	PT_TOOTH,
 	PT_FADE,

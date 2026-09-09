@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(Cogwheel VERSION 0.3.0 LANGUAGES C CXX)
+project(Cogwheel VERSION 0.4.0 LANGUAGES C CXX)
 
 #-----------------------------------------------------------------------------
 # Architecture. Must sit immediately after project() and before any target

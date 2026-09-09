@@ -109,15 +109,25 @@ public:
 		/// second sheet-sized buffer while it is on.
 		bool fadeByFigure = false;
 
-		/// How many figures closed during the frame being drawn, straight from
-		/// `Crank::FiguresClosed`. Read only when `fadeByFigure`.
-		int figuresClosed = 0;
-
 		/// Show a photographic negative of the sheet. Ink only ever darkens
 		/// paper, so this is the only way to a pale line on a dark ground --
 		/// and it is a real one: a drawing, photographed and printed the other
 		/// way up.
 		bool negative = false;
+
+		/// No paper at all: the ink on a clear sheet, with an alpha channel.
+		///
+		/// Ink is subtractive, so on a black sheet it is invisible -- that is
+		/// not a bug, it is Beer's law, and it is what #15 ran into trying to
+		/// key the paper out to composite the drawing over other layers. This
+		/// is the honest way to do that. The output is the drawing's
+		/// TRANSMISSION carried as premultiplied colour, with alpha equal to
+		/// how much light the ink stops: over white it is exactly the drawing
+		/// on white paper, over black the line shows in its own colour, and a
+		/// black pen composites as an exact multiply whatever is behind it.
+		/// The paper colour, its grain and Paper from Clip do not apply --
+		/// there is no paper.
+		bool clearPaper = false;
 
 		//--- framing -------------------------------------------------------
 		float scale     = 0.95f;

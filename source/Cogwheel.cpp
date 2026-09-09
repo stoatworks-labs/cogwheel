@@ -139,12 +139,17 @@ void CogwheelPlugin::declareParameters()
 
 	// -- The pen -------------------------------------------------------------
 	option( PT_PEN_SET, "Pens", kPenSetCount, kPenSetNames );
-	// FF_TYPE_RED carries the swatch; green and blue are separate parameters
-	// that the host groups behind it by type, which is why only the red one
-	// gets a human name.
-	SetParamInfof( PT_INK_R, "Ink", FF_TYPE_RED );
-	SetParamInfof( PT_INK_G, "Ink_Green", FF_TYPE_GREEN );
-	SetParamInfof( PT_INK_B, "Ink_Blue", FF_TYPE_BLUE );
+	// Three sliders, named as three sliders. The SDK's quickstart names a colour
+	// "X", "X_green", "X_blue" on the theory that the host folds the three into
+	// one swatch behind the red one's name; Arena 7.27.1 does not, it shows
+	// three sliders, and an operator got "Ink", "Ink_Green" and "Ink_Blue" (#17).
+	// Renamed in 0.4.0. A saved composition matches by name, so a colour set in
+	// a 0.3.x composition reverts to its default once -- the release notes say
+	// so -- and an exported XML still loads, because idForName knows the old
+	// names.
+	SetParamInfof( PT_INK_R, "Ink Red", FF_TYPE_RED );
+	SetParamInfof( PT_INK_G, "Ink Green", FF_TYPE_GREEN );
+	SetParamInfof( PT_INK_B, "Ink Blue", FF_TYPE_BLUE );
 	option( PT_PEN_TYPE, "Pen Type", kPenTypeCount, kPenTypeNames );
 	standard( PT_FLOW, "Flow" );
 	standard( PT_NIB, "Nib" );
@@ -152,10 +157,11 @@ void CogwheelPlugin::declareParameters()
 	SetParamInfo( PT_INK_FROM_CLIP, "Ink from Clip", FF_TYPE_BOOLEAN, false );
 
 	// -- The paper -----------------------------------------------------------
-	SetParamInfof( PT_PAPER_R, "Paper", FF_TYPE_RED );
-	SetParamInfof( PT_PAPER_G, "Paper_Green", FF_TYPE_GREEN );
-	SetParamInfof( PT_PAPER_B, "Paper_Blue", FF_TYPE_BLUE );
+	SetParamInfof( PT_PAPER_R, "Paper Red", FF_TYPE_RED );
+	SetParamInfof( PT_PAPER_G, "Paper Green", FF_TYPE_GREEN );
+	SetParamInfof( PT_PAPER_B, "Paper Blue", FF_TYPE_BLUE );
 	SetParamInfo( PT_PAPER_FROM_CLIP, "Paper from Clip", FF_TYPE_BOOLEAN, false );
+	SetParamInfo( PT_PAPER_CLEAR, "Clear Paper", FF_TYPE_BOOLEAN, params[ PT_PAPER_CLEAR ] > 0.5f );
 	standard( PT_GRAIN, "Grain" );
 	standard( PT_TOOTH, "Tooth" );
 	standard( PT_FADE, "Fade" );
@@ -169,9 +175,9 @@ void CogwheelPlugin::declareParameters()
 
 	// -- The overlay ---------------------------------------------------------
 	standard( PT_GEARS, "Show Gears" );
-	SetParamInfof( PT_GEAR_R, "Gear Tint", FF_TYPE_RED );
-	SetParamInfof( PT_GEAR_G, "Gear Tint_Green", FF_TYPE_GREEN );
-	SetParamInfof( PT_GEAR_B, "Gear Tint_Blue", FF_TYPE_BLUE );
+	SetParamInfof( PT_GEAR_R, "Gear Tint Red", FF_TYPE_RED );
+	SetParamInfof( PT_GEAR_G, "Gear Tint Green", FF_TYPE_GREEN );//15, and the limit is 16
+	SetParamInfof( PT_GEAR_B, "Gear Tint Blue", FF_TYPE_BLUE );
 
 	// -- Output --------------------------------------------------------------
 	standard( PT_MIX, overInput ? "Mix" : "Opacity" );
@@ -299,10 +305,26 @@ FFResult CogwheelPlugin::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 
 	resolved.render.frameSeconds  = static_cast< float >( clock.FrameSeconds() );
 	resolved.render.clearSheet    = clearRequested;
-	//Read after Advance, so it is this frame's closures and not the last
-	//frame's. Only Sheet reads it, and only when fading by figure.
-	resolved.render.figuresClosed = crank.FiguresClosed();
 	clearRequested               = false;
+
+	//A train that cannot be threaded draws nothing, and from the panel that is
+	//indistinguishable from a broken plugin (#16). The display strings say why
+	//against the two counts; this says it once, in the log, with the way out.
+	//Once, on the change, because Advance is per frame and a log that scrolls
+	//is a log nobody reads.
+	if( geometry.usable != trainUsable )
+	{
+		trainUsable = geometry.usable;
+		if( !trainUsable )
+		{
+			const Train train = crank.CurrentTrain( resolved.crank );
+			diag::warn( "nothing to draw: a " + std::to_string( train.wheelTeeth )
+			            + "-tooth wheel cannot run inside a " + std::to_string( train.ringTeeth )
+			            + "-tooth ring - set Mesh to Outside, or use a smaller wheel" );
+		}
+		else
+			diag::info( "the train fits again; drawing resumes" );
+	}
 
 	const bool drawn = sheet.Render( steps, runs, geometry, crank.Theta(), crank.SlipTeeth(),
 	                                 resolved.render,
@@ -608,14 +630,28 @@ char* CogwheelPlugin::GetParameterDisplay( unsigned int index )
 		//the whole plugin and it is otherwise invisible: an operator dragging
 		//either of these is asking "what shape is this going to be?", and the
 		//lobe count and the turn count are the answer.
-		std::snprintf( buffer, sizeof( buffer ), "%dt - %d lobes",
-		               train.ringTeeth, g.lobes );//360t - 360 lobes = 16
+		//
+		//Unless the train cannot be threaded, in which case the answer is
+		//"nothing", and both counts say which of them is the problem (#16): a
+		//wheel as big as the ring, or bigger, cannot run round the inside of
+		//it. The lobe count would be arithmetic about a figure that does not
+		//exist.
+		if( !g.usable )
+			std::snprintf( buffer, sizeof( buffer ), "%dt - too small",
+			               train.ringTeeth );//360t - too small = 16
+		else
+			std::snprintf( buffer, sizeof( buffer ), "%dt - %d lobes",
+			               train.ringTeeth, g.lobes );//360t - 360 lobes = 16
 		break;
 	case PT_WHEEL:
 		//"closes" rather than "closes in N turns": the verb is what carries the
 		//meaning and the sentence does not fit.
-		std::snprintf( buffer, sizeof( buffer ), "%dt closes %d",
-		               train.wheelTeeth, g.turnsToClose );//240t closes 512 = 15
+		if( !g.usable )
+			std::snprintf( buffer, sizeof( buffer ), "%dt - too big",
+			               train.wheelTeeth );//240t - too big = 14
+		else
+			std::snprintf( buffer, sizeof( buffer ), "%dt closes %d",
+			               train.wheelTeeth, g.turnsToClose );//240t closes 512 = 15
 		break;
 	case PT_PEN:
 		if( resolved.crank.snapPenToHoles )
@@ -776,12 +812,25 @@ int CogwheelPlugin::idForName( const std::string& name )
 	if( name == "Mix" || name == "Opacity" )
 		return PT_MIX;
 
+	// The colour sliders were renamed in 0.4.0 (#17). A file exported by an
+	// earlier release carries the old names, and a file has to survive a
+	// rename the way it survives a renumbering.
+	struct Legacy { const char* was; unsigned int id; };
+	static const Legacy kLegacy[] = {
+		{ "Ink", PT_INK_R },             { "Ink_Green", PT_INK_G },       { "Ink_Blue", PT_INK_B },
+		{ "Paper", PT_PAPER_R },         { "Paper_Green", PT_PAPER_G },   { "Paper_Blue", PT_PAPER_B },
+		{ "Gear Tint", PT_GEAR_R },      { "Gear Tint_Green", PT_GEAR_G },{ "Gear Tint_Blue", PT_GEAR_B },
+	};
+
 	for( unsigned int id = 0; id < PT_ABOUT_TEXT; ++id )
 	{
 		const char* candidate = GetParamName( id );
 		if( candidate != nullptr && name == candidate )
 			return static_cast< int >( id );
 	}
+	for( const Legacy& legacy : kLegacy )
+		if( name == legacy.was )
+			return static_cast< int >( legacy.id );
 	return -1;
 }
 

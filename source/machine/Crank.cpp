@@ -288,13 +288,17 @@ Geometry Crank::Advance( const CrankParams& params, double frameSeconds,
 			steps.push_back( s );
 		}
 
-		runs.push_back( run );
-
 		theta      += advance;
 		remaining  -= advance;
 		figurePhase = std::clamp( theta / closeAt, 0.0, 1.0 );
 
-		if( theta >= closeAt - 1.0e-9 )
+		//Decided before the run is stored, so the renderer can tell the last
+		//stroke of a figure from the first stroke of the next one inside the
+		//same frame. See Run::closes.
+		run.closes = theta >= closeAt - 1.0e-9;
+		runs.push_back( run );
+
+		if( run.closes )
 		{
 			completeFigure( params );
 			geometry = Solve( CurrentTrain( params ) );

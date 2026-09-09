@@ -78,6 +78,16 @@ struct Run
 	int count  = 0; ///< How many Steps. A run of fewer than two draws nothing.
 	float colour[ 3 ] = { 0.0f, 0.0f, 0.0f };
 	int layer  = 0; ///< Which figure of the stack this is, 0-based.
+
+	/// True when this run ended because its figure closed, so it is the LAST
+	/// stroke of that figure. The renderer needs to know, because the frame a
+	/// figure closes in also holds the first stroke of the next one, and when
+	/// fading by figure the two must land on different sheets: this run belongs
+	/// with the figure that is settling, the runs after it with the figure that
+	/// is starting. Folding the whole frame in as one -- which is what #14
+	/// reported -- leaves the last frame's-worth of every figure unfaded, as a
+	/// dot at its starting point that outlives the rest of the line.
+	bool closes = false;
 };
 
 struct CrankParams

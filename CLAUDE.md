@@ -32,6 +32,7 @@ Disable with `-DBUILD_OFX=OFF`.
 - Total ink is independent of Detail: `./build/cgtest --detail`
 - The drawing is independent of frame rate: `./build/cgtest --rate`
 - Two pens crossing MULTIPLY: `./build/cgtest --beer`
+- The closing frame's last stroke settles with its own figure: `./build/cgtest --settle`
 - The defaults keep drawing, a true mesh stops: `./build/cgtest --liveness`
 - Every preset draws something: `./build/cgtest --presets`
 - The defaults ARE preset 1: `./build/cgtest --defaults`

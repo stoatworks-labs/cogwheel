@@ -453,6 +453,7 @@ struct SheetSetup
 	float paperGrain       = 0.15f;
 	float toothScale       = 220.0f;
 	bool negative          = false;
+	bool clearPaper        = false;
 
 	float opacity     = 1.0f;
 	float passthrough = 0.0f;
@@ -568,7 +569,7 @@ public:
 						sheet[ c ] *= tooth;
 				}
 
-				float drawn[ 3 ] = { 0.0f, 0.0f, 0.0f };
+				float transmit[ 3 ] = { 1.0f, 1.0f, 1.0f };
 				if( s.paper != nullptr && s.paper->ready()
 				    && px < s.paper->width() && py < s.paper->height() )
 				{
@@ -581,18 +582,29 @@ public:
 					{
 						const float total = std::max( density[ c ], 0.0f )
 						                    + ( older != nullptr ? std::max( older[ c ], 0.0f ) : 0.0f );
-						drawn[ c ] = sheet[ c ] * std::exp( -total );
+						transmit[ c ] = std::exp( -total );
 					}
 				}
-				else
+
+				float drawn[ 3 ];
+				for( int c = 0; c < 3; ++c )
+					drawn[ c ] = sheet[ c ] * transmit[ c ];
+
+				//No paper: transcribed from the sheet shader. Premultiplied
+				//colour carrying the transmission, alpha the coverage -- the
+				//channel the ink stops most.
+				float alpha = 1.0f;
+				if( s.clearPaper )
 				{
+					const float coverage = 1.0f - std::min( transmit[ 0 ], std::min( transmit[ 1 ], transmit[ 2 ] ) );
+					alpha                = coverage;
 					for( int c = 0; c < 3; ++c )
-						drawn[ c ] = sheet[ c ];
+						drawn[ c ] = transmit[ c ] - ( 1.0f - coverage );
 				}
 
 				if( s.negative )
 					for( int c = 0; c < 3; ++c )
-						drawn[ c ] = 1.0f - drawn[ c ];
+						drawn[ c ] = alpha - drawn[ c ];
 
 				if( s.gearLevel > 0.0f )
 				{
@@ -629,6 +641,16 @@ public:
 					const float gear = std::max( std::max( ring, wheel ), std::max( pen, arm ) ) * s.gearLevel;
 					for( int c = 0; c < 3; ++c )
 						drawn[ c ] = mix( drawn[ c ], s.gearColour[ c ], gear );
+					alpha = mix( alpha, 1.0f, gear );
+				}
+
+				//On a clear sheet the effect composites the ink over the clip
+				//and the clip keeps its own alpha underneath.
+				if( s.clearPaper && s.hasClip )
+				{
+					for( int c = 0; c < 3; ++c )
+						drawn[ c ] += clip[ c ] * ( 1.0f - alpha );
+					alpha += clip[ 3 ] * ( 1.0f - alpha );
 				}
 
 				//Passthrough is exact by construction: at 1 the clip leaves
@@ -637,7 +659,7 @@ public:
 				float out[ 4 ];
 				for( int c = 0; c < 3; ++c )
 					out[ c ] = mix( drawn[ c ], clip[ c ], s.passthrough );
-				out[ 3 ] = mix( 1.0f, clip[ 3 ], s.passthrough );
+				out[ 3 ] = mix( alpha, clip[ 3 ], s.passthrough );
 
 				for( int c = 0; c < nComponents; ++c )
 				{
@@ -814,6 +836,12 @@ const Decl kDecls[] = {
 	ABSENT( PT_PAPER_B ),
 	TOGGLE( PT_PAPER_FROM_CLIP, "paperFromClip", "Paper from Clip", 0.0f,
 	        "Use the clip as the sheet the pen draws on. Effect build only." ),
+	TOGGLE( PT_PAPER_CLEAR, "clearPaper", "Clear Paper", 0.0f,
+	        "No paper at all: the ink on a clear sheet, with an alpha channel, for "
+	        "compositing the drawing over other layers. Ink is subtractive, so a black "
+	        "paper would simply hide it -- this is the honest way to key the sheet out. "
+	        "Paper colour, Grain and Paper from Clip do not apply; on the effect the ink "
+	        "goes over the clip and the clip keeps its own alpha." ),
 	SLIDER( PT_GRAIN, "grain", "Grain", 0.15f,
 	        "How much of the paper's tooth you can see." ),
 	SLIDER( PT_TOOTH, "tooth", "Tooth", 0.222f,
@@ -1180,10 +1208,15 @@ private:
 				return static_cast< int >( d.id );
 			if( d.kind == Kind::Colour )
 			{
+				//The FFGL build's three sliders: "Ink Red", "Ink Green", "Ink
+				//Blue" since 0.4.0, and the quickstart's "Ink", "Ink_Green",
+				//"Ink_Blue" in every file exported before it (#17). Both load.
 				const std::string base = d.label;
-				if( name == base + "_Green" )
+				if( name == base + " Red" )
+					return static_cast< int >( d.id );
+				if( name == base + " Green" || name == base + "_Green" )
 					return static_cast< int >( d.id + 1 );
-				if( name == base + "_Blue" )
+				if( name == base + " Blue" || name == base + "_Blue" )
 					return static_cast< int >( d.id + 2 );
 			}
 		}
@@ -1372,13 +1405,10 @@ private:
 				}
 
 				//Fade first, fold in second, so a figure joins the pile at full
-				//strength rather than being docked a frame on the way in.
+				//strength rather than being docked a frame on the way in. The
+				//fold-in itself happens in the run loop below, at the run that
+				//closed the figure -- see Run::closes and the GL build.
 				settled.fade( retain );
-				if( crank.FiguresClosed() > 0 )
-				{
-					settled.addFrom( paper );
-					paper.clear();
-				}
 			}
 			else if( settledInUse )
 			{
@@ -1418,6 +1448,17 @@ private:
 					Absorption( colour, absorb );
 					depositSegment( paper, steps[ i ], steps[ i + 1 ], absorb, deposit );
 				}
+
+				//The frame a figure closes in holds that figure's last stroke
+				//and the next figure's first. The last stroke goes with the
+				//figure that is settling, and only then is the paper cleared
+				//for the one that is starting. Folding in before the frame was
+				//drawn left a dot at every figure's starting point (#14).
+				if( byFigure && run.closes )
+				{
+					settled.addFrom( paper );
+					paper.clear();
+				}
 			}
 		}
 
@@ -1442,6 +1483,7 @@ private:
 		setup.paperGrain    = resolved.render.paperGrain;
 		setup.toothScale    = resolved.render.toothScale;
 		setup.negative      = resolved.render.negative;
+		setup.clearPaper    = resolved.render.clearPaper;
 		setup.opacity       = resolved.render.opacity;
 		setup.passthrough   = over ? resolved.render.passthrough : 0.0f;
 		setup.gearLevel     = resolved.render.gearLevel;

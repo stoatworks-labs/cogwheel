@@ -397,3 +397,65 @@ preset taking over, a file with every id wrong, and a file that is not ours.
 The OFX build has the same control as a string parameter with
 `eStringTypeFilePath`, written *through* the host's parameters because there
 the host's parameters are the state.
+
+## 2026-09-09 — v0.4.0: the day after, five issues from one operator
+
+VJPandaAU spent the evening of the v0.3.0 release with it and filed five
+issues (#14–#18). Four are changes; the fifth is a video, shared with
+permission and linked from the README.
+
+### The dot at the starting point (#14)
+
+With Fade by Figure on, a faint dot outlived every figure at its starting
+point. The cause was in the v0.3.0 fold-in: `Sheet::Render` composed the paper
+into the settled sheet and cleared it **before** drawing the frame's strokes.
+But the frame a figure closes in holds that figure's *last* stroke as well as
+the next figure's *first* — `Crank::Advance` cuts the run at the closure and
+carries on — so the last frame's-worth of the old figure was drawn onto the
+new figure's fresh paper, where nothing fades. It sat there at full strength
+until the new figure closed in turn, then settled and faded with *that*
+figure. Hence "only the previous pattern": the dot was always exactly one
+figure behind.
+
+The fix is a `bool closes` on `Run`, set by the crank at the closure, and the
+renderer drawing runs up to and including each closing one, folding in, then
+drawing the rest of the frame onto clean paper. The OFX build had the same
+defect for the same reason and gets the same fix inside its run loop.
+`cgtest --settle` drives `Sheet` directly with two strokes in one frame, the
+left one marked closing, and asserts that a second later the left one has
+faded to paper and the right one has not moved. It fails on v0.3.0.
+
+### Clear Paper (#15)
+
+The operator turned the paper black to key it out and composite the line over
+another layer, and everything went black. That is Beer's law — ink has nothing
+to darken on black paper — and the plugin was right, but the want underneath
+it was real: a source that emits the ink with an alpha channel. `Clear Paper`
+does that. The output carries the sheet's *transmission* as premultiplied
+colour with alpha equal to the coverage (one minus the smallest channel of the
+transmission, because a red pen stops all the green and blue and its line is
+as present as they say). Over white that is exactly the drawing on white
+paper; over black the line shows in its own colour; a black pen composites as
+a pure multiply, which is what ink does. Grain, paper colour and Paper from
+Clip do not apply because there is no paper; on the effect the ink goes over
+the clip and the clip keeps its alpha. A new parameter, inserted mid-list in
+the Paper group — safe, because Resolume and the XML match by name.
+
+### Wheel ≥ ring on the inside (#16)
+
+A 100-tooth wheel inside a 96-tooth ring drew nothing, silently.
+`Geometry::usable` was already false; nothing said so. Now the Ring reads
+`too small` and the Wheel `too big`, the log gets one line on the change (with
+the way out: Mesh → Outside, or a smaller wheel) and the guide says the same.
+Deliberately **not** clamped or auto-swapped: a machine that cannot be
+threaded should say so rather than quietly draw a different one.
+
+### The colour sliders (#17)
+
+`Ink`, `Ink_Green`, `Ink_Blue` — the SDK quickstart's convention, on the
+theory that the host folds them into one swatch. Arena 7.27.1 shows three
+sliders. Renamed to `Ink Red / Green / Blue`, the same for Paper and Gear
+Tint. Renaming is the one thing a saved composition does not survive, so a
+colour set in a 0.3.x composition reverts to its default once and the release
+notes say so; exported XML survives, because both builds' loaders know the
+old names. `Gear Tint Green` is fifteen characters against a limit of sixteen.
