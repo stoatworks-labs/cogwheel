@@ -65,10 +65,11 @@ def main() -> int:
         "kSnapSet": (0, 1),
         "kSnapHoles": (0, 1),
         "kDetail": (0, 2),
-        "kChange": (0, 3),
+        "kChange": (0, 4),
         "kWipe": (0, 1),
         "kPenSet": (0, 4),
         "kPenType": (0, 1),
+        "kBlend": (0, 2),
         "kPrint": (0, 1),
     }
 

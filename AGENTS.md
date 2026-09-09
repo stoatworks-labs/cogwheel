@@ -106,6 +106,15 @@ the picture change" reports a stopped drawing as very much alive. That was the
 first version of the test and it was useless. What a dead machine stops doing is
 reaching anywhere *new*.
 
+**`Keep Going` (#21) is the fourth way out, and it is not `Layers = 1`.** A
+stack of one keeps the pen down but still *counts* the closure -- `Run::closes`
+is set, `FiguresClosed()` ticks, and with Fade by Figure on the drawing so far
+settles and fades at every closure. Under `On Closing → Keep Going` a closure
+is not an event: nothing is counted, folded, wiped or moved; theta is wound
+back by one figure so it stays bounded, which is exact because a closed figure
+is periodic in theta for any fixed slip. `cgtest --keepgoing` checks the pen
+does not move at the wind-back and that Fade by Figure has nothing to take.
+
 ⚠️ **Slip carries across a closure only when the pen never lifts.** A stack of
 one figure is somebody who has not stopped turning: the wheel stays in the ring,
 `theta` carries on, and the accumulated creep goes with it. A stack of more than
@@ -128,6 +137,21 @@ what makes the plugin's most decisive test possible: at a crossing,
 
 with no reference to flow, nib, speed or colour. `cgtest --beer` asserts exactly
 that, and additive blending misses it by a mile.
+
+**The alpha channel is coverage, and only the opaque pens write it.** `Blend`
+(#20) added a paint marker and an eraser to the box. Both are the same
+operation: hide a fraction `1 - exp( -Hiding * deposit )` of what is under the
+nib, and put the pen's own absorption there (or nothing, for the eraser). The
+buffer's alpha carries that fraction, the ink pass draws with `GL_ONE,
+GL_ONE_MINUS_SRC_ALPHA` in every mode -- at alpha 0, which is what the
+transparent pen writes, that is the add it always was -- and the Fade by
+Figure split composites the figure in progress OVER the settled sheet at the
+fold-in and the settled sheet UNDER it on the way back. The hiding fraction has
+Beer's shape on purpose: two half-coats compose to exactly one whole one
+however the path is chopped, so `--detail`'s argument holds for hiding too.
+`cgtest --blend` is the identity, and it is as parameter-free as `--beer`:
+`shown( A then B ) = shown( only A )^( 1 - h ) * shown( only B )`, with `h`
+read off the only-B render.
 
 ⚠️ **A test that measures a saturated crossing passes trivially.** The first
 version of `--beer` ran at a flow where every channel transmitted under 1e-6, so

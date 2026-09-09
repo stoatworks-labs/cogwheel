@@ -17,10 +17,13 @@ namespace cogwheel
 	Three passes, and one buffer.
 
 	  1. Fade    multiply the sheet's density in place, if it is fading at all.
-	  2. Ink     one instanced quad per step interval, additive, into the same
-	             buffer -- which is why there is no second buffer and no
-	             combine pass. One draw call per `Run`, so that a layer change
-	             gets its own pen colour without a per-step colour attribute.
+	  2. Ink     one instanced quad per step interval, into the same buffer --
+	             which is why there is no second buffer and no combine pass.
+	             Additive for a transparent pen; a covering pen composites
+	             OVER what is there, with the buffer's alpha carrying how much
+	             of the older ink it has hidden (see `Blend`). One draw call
+	             per `Run`, so that a layer change gets its own pen colour
+	             without a per-step colour attribute.
 	  3. Sheet   paper, grain, Beer's law, the gear overlay, and the composite
 	             into the host's framebuffer.
 
@@ -28,7 +31,11 @@ namespace cogwheel
 
 	`GL_RGBA32F`, at the output's own size, and it is **not** ping-ponged. The
 	fade is drawn with `GL_ZERO, GL_SRC_COLOR`, which is a multiply in place;
-	the ink is additive on top of it. A ping-pong would cost a second
+	the ink is composited on top of it with `GL_ONE, GL_ONE_MINUS_SRC_ALPHA`,
+	which for the transparent pen -- alpha zero -- is a plain add. The alpha
+	channel is COVERAGE: how much of whatever lies under this buffer an opaque
+	pen has hidden. It is zero everywhere a transparent pen has drawn, so a
+	drawing made with the default pen is exactly the sum it always was. A ping-pong would cost a second
 	full-resolution float buffer and a full-frame copy every frame for a pass
 	whose whole job is one multiply.
 
@@ -58,6 +65,34 @@ namespace cogwheel
 	  `glUniform` at location -1 is a documented no-op. No error, no warning,
 	  the value simply never arrives.
 */
+/// How new ink meets the ink already on the sheet.
+///
+/// The default is the only one Beer's law describes, and the other two are
+/// two more real things a person can put in the pen hole rather than blend
+/// modes off a menu. #20 asked for add, subtract and overlay; "add" is what
+/// `Print -> Negative` already produces, and the other two are these.
+enum class Blend : int
+{
+	/// Transparent ink. Absorptions add, so crossings darken and red over
+	/// blue is the near-black it is on the table. What every pen in the box
+	/// does, and the only mode `cgtest --beer` is about.
+	Multiply = 0,
+
+	/// Opaque pigment: a paint marker, gouache, correction fluid. New ink
+	/// hides what is under it to the extent of its coverage, so a crossing
+	/// is the colour of whichever pen came second and a pen never darkens
+	/// beyond its own colour however often it crosses itself. A white or
+	/// paper-coloured pen in this mode is white-out.
+	Cover,
+
+	/// The pen takes ink off: an eraser in the pen hole, or a bleach pen on
+	/// a finished drawing. The pen's colour is ignored; the figure is drawn
+	/// in whatever was underneath before the ink was laid.
+	Lift,
+
+	Count
+};
+
 class Sheet
 {
 public:
@@ -136,6 +171,11 @@ public:
 		//--- the ink -------------------------------------------------------
 		bool inkFromClip = false;
 
+		/// How new ink meets old. Multiply is the transparent pen and the
+		/// default; the buffer's alpha channel is only ever written by the
+		/// other two. See `Blend`.
+		Blend blend = Blend::Multiply;
+
 		//--- the overlay ---------------------------------------------------
 		float gearLevel = 0.0f;
 		float gearColour[ 3 ] = { 0.55f, 0.52f, 0.48f };
@@ -181,9 +221,14 @@ public:
 	int SheetWidth() const { return sheetWidth; }
 
 private:
-	/// Add one sheet's density into another, and leave the source alone.
-	/// Additive, because these are absorptions.
-	void Compose( PaperBuffer& from, PaperBuffer& into );
+	/// Composite one sheet into another, and leave the source alone. `over`
+	/// puts `from` on top of `into`, which is the fold-in of a figure that has
+	/// just closed onto the figures that settled before it; `!over` puts it
+	/// underneath, which is the way back when Fade by Figure goes off and the
+	/// settled sheet has to rejoin the figure still being drawn. For a
+	/// drawing made with a transparent pen -- coverage zero throughout --
+	/// both are the plain sum of two absorptions, which is what this was.
+	void Compose( PaperBuffer& from, PaperBuffer& into, bool over );
 
 	ffglex::FFGLShader inkShader;
 	ffglex::FFGLShader fadeShader;

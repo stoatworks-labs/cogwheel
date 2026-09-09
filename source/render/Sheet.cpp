@@ -143,7 +143,7 @@ void Sheet::DeInitGL()
 	sheetHeight = 0;
 }
 
-void Sheet::Compose( PaperBuffer& from, PaperBuffer& into )
+void Sheet::Compose( PaperBuffer& from, PaperBuffer& into, bool over )
 {
 	if( !from.IsValid() || !into.IsValid() || !composeShader.IsReady() )
 		return;
@@ -154,7 +154,12 @@ void Sheet::Compose( PaperBuffer& from, PaperBuffer& into )
 	// viewport -- the same trap the fade pass is built around.
 	glViewport( 0, 0, sheetWidth, sheetHeight );
 
-	setAdditiveBlend();
+	// Over or under, by coverage. With nothing but transparent ink on either
+	// sheet the coverage is zero throughout and both are the plain sum.
+	if( over )
+		setOverBlend();
+	else
+		setUnderBlend();
 
 	ScopedShaderBinding shader( composeShader.GetGLID() );
 	glActiveTexture( GL_TEXTURE0 );
@@ -271,8 +276,9 @@ bool Sheet::Render( const std::vector< Step >& steps, const std::vector< Run >& 
 		// The switch has just gone off, or the fade has been turned down to
 		// nothing. Everything that had settled has to come back onto the paper,
 		// or every closed figure vanishes the instant the operator changes
-		// their mind.
-		Compose( settled, paper );
+		// their mind. UNDER the paper: the settled figures were drawn first,
+		// and an opaque figure in progress keeps hiding what it hid.
+		Compose( settled, paper, false );
 		settled.Destroy();
 		settledInUse = false;
 	}
@@ -328,8 +334,11 @@ bool Sheet::Render( const std::vector< Step >& steps, const std::vector< Run >& 
 		// Sum, not max(). Two strokes crossing the same texel really did put
 		// twice the pigment there, and a max() would throw away every crossing
 		// in the figure -- which is exactly where a spirograph drawing is
-		// darkest.
-		setAdditiveBlend();
+		// darkest. The blend is premultiplied over, which for the transparent
+		// pen -- alpha zero -- IS the sum; an opaque pen writes the fraction
+		// it hides as alpha, and the same blend then composites it over what
+		// was there. See the ink fragment stage.
+		setOverBlend();
 
 		ScopedShaderBinding shader( inkShader.GetGLID() );
 
@@ -344,6 +353,7 @@ bool Sheet::Render( const std::vector< Step >& steps, const std::vector< Run >& 
 		inkShader.Set( "Tooth", std::max( params.tooth, 0.0f ) );
 		inkShader.Set( "ToothScale", std::max( params.toothScale, 1.0f ) );
 		inkShader.Set( "MaxUV", maxU, maxV );
+		inkShader.Set( "Blend", static_cast< float >( static_cast< int >( params.blend ) ) );
 
 		const bool clipInk = params.inkFromClip && clipTexture != 0;
 		inkShader.Set( "InkFromClip", clipInk ? 1.0f : 0.0f );
@@ -422,7 +432,9 @@ bool Sheet::Render( const std::vector< Step >& steps, const std::vector< Run >& 
 
 			if( closed )
 			{
-				Compose( paper, settled );
+				// OVER the settled sheet: the figure that just closed was drawn
+				// on top of everything that settled before it.
+				Compose( paper, settled, true );
 				paper.ClearTo( 0.0f, 0.0f, 0.0f, 0.0f );
 			}
 			from = to;

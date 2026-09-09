@@ -16,6 +16,8 @@
         --liveness  the defaults keep drawing; a stiff machine provably stops
         --figurefade turning Fade by Figure off does not lose the drawing
         --settle    the frame a figure closes in puts its last stroke with that figure
+        --blend     an opaque pen hides, a lifting pen takes ink off, and both compose exactly
+        --keepgoing under Keep Going a closure is not an event
         --presets   every preset draws something with structure in it
         --defaults  the constructor's defaults ARE preset 1
         --hosts     presets survive all three host behaviours
@@ -507,6 +509,7 @@ void setMeasurementLook( CogwheelPlugin& plugin )
 	plugin.SetFloatParameter( PT_FADE, 0.0f );
 	plugin.SetFloatParameter( PT_GEARS, 0.0f );
 	plugin.SetFloatParameter( PT_PRINT, 0.0f );
+	plugin.SetFloatParameter( PT_BLEND, static_cast< float >( Blend::Multiply ) );
 	plugin.SetFloatParameter( PT_MIX, 1.0f );
 	plugin.SetFloatParameter( PT_SYNC, static_cast< float >( Sync::Free ) );
 }
@@ -984,6 +987,374 @@ int runBeer( const Target& target )
 		std::printf( "  %-9s %8.5f %8.5f %10.5f %15.5f %8.2e %s\n",
 		             c == 0 ? "red" : ( c == 1 ? "green" : "blue" ),
 		             onlyA[ c ], onlyB[ c ], measured, predicted, error, ok ? "" : "FAIL" );
+	}
+
+	std::printf( "\n  %s\n", failures == 0 ? "PASS" : "FAIL" );
+	return failures == 0 ? 0 : 1;
+}
+
+//---------------------------------------------------------------------------
+// --blend
+//---------------------------------------------------------------------------
+//
+// The two pens #20 added, each against an identity with no parameters in it.
+// Driven through `Sheet` like --beer, with the same two strokes crossing at
+// the centre of the sheet: A is the transparent red pen and B the blue one,
+// and what B does to A depends on the mode.
+//
+// A covering pen hides a fraction `h` of what was under it and puts its own
+// colour there, so on white paper it transmits C_B^h -- which is how `h` is
+// READ, per channel, off the only-B render: h = ln( shown_B ) / ln( C_B ). The
+// prediction for A then B is then, per channel,
+//
+//     shown( A then B ) = shown( only A )^( 1 - h ) * shown( only B )
+//
+// and a lifting pen with the same deposit is the same with the pigment left
+// out: shown( only A )^( 1 - h ). Neither has flow, nib or speed in it, and
+// --beer's additive identity fails both by a mile.
+//
+// The same identity is then asked of the split sheet Fade by Figure keeps --
+// with B in progress over a settled A, after B has folded in, and after the
+// switch has gone off again -- because those go through the sheet shader's
+// coverage multiply, the compose pass's over blend and its under blend
+// respectively: three more places a coverage could be dropped on the floor.
+int runBlend( const Target& target )
+{
+	std::printf( "blend -- an opaque pen hides, a lifting pen takes ink off, and both compose exactly\n\n" );
+
+	Sheet sheet;
+	if( !sheet.InitGL() )
+		return 1;
+
+	std::vector< Step > steps;
+	std::vector< Run > runs;
+
+	const int count = 64;
+	auto addRun = [ & ]( float x0, float y0, float x1, float y1, const float colour[ 3 ], bool closes ) {
+		Run run;
+		run.first  = static_cast< int >( steps.size() );
+		run.count  = count;
+		run.closes = closes;
+		run.colour[ 0 ] = colour[ 0 ];
+		run.colour[ 1 ] = colour[ 1 ];
+		run.colour[ 2 ] = colour[ 2 ];
+		for( int i = 0; i < count; ++i )
+		{
+			const float t = static_cast< float >( i ) / static_cast< float >( count - 1 );
+			Step s;
+			s.x   = x0 + ( x1 - x0 ) * t;
+			s.y   = y0 + ( y1 - y0 ) * t;
+			s.ink = 1.0f;
+			s.dt  = ( i + 1 < count ) ? ( 1.0f / static_cast< float >( count - 1 ) ) : 0.0f;
+			steps.push_back( s );
+		}
+		runs.push_back( run );
+	};
+
+	const float red[ 3 ]  = { 0.80f, 0.25f, 0.20f };
+	const float blue[ 3 ] = { 0.20f, 0.30f, 0.85f };
+
+	Sheet::RenderParams params;
+	//The same flow --beer uses, and for the same reason: every channel in the
+	//middle of its range, so that nothing here is satisfied by 0 == 0.
+	params.flow      = 0.06f;
+	params.nibSigma  = 0.02f;
+	params.nibSpread = 0.0f;
+	params.tooth     = 0.0f;
+	params.paperGrain = 0.0f;
+	params.fadeSeconds = 0.0f;
+	params.scale     = 1.0f;
+	params.paperColour[ 0 ] = params.paperColour[ 1 ] = params.paperColour[ 2 ] = 1.0f;
+	params.gearLevel = 0.0f;
+	params.opacity   = 1.0f;
+	params.frameSeconds = 1.0f / 60.0f;
+
+	const GLint viewport[ 4 ] = { 0, 0, target.width, target.height };
+	Geometry geometry;// unused: the overlay is off
+
+	auto frame = [ & ]( Blend blend, bool clear ) {
+		params.blend      = blend;
+		params.clearSheet = clear;
+		glBindFramebuffer( GL_FRAMEBUFFER, target.fbo );
+		glViewport( 0, 0, target.width, target.height );
+		glClearColor( 0.0f, 0.0f, 0.0f, 0.0f );
+		glClear( GL_COLOR_BUFFER_BIT );
+		sheet.Render( steps, runs, geometry, 0.0, 0.0, params, target.fbo, viewport, 0, 1.0f, 1.0f );
+		params.clearSheet = false;
+		steps.clear();
+		runs.clear();
+	};
+	auto sample = [ & ]( float rgb[ 3 ] ) {
+		samplePixel( readFloats( target ), target.width, target.height, 0.5f, 0.5f, rgb );
+	};
+	auto strokeA = [ & ]( bool closes ) { addRun( -0.6f, 0.0f, 0.6f, 0.0f, red, closes ); };
+	auto strokeB = [ & ]( bool closes ) { addRun( 0.0f, -0.6f, 0.0f, 0.6f, blue, closes ); };
+
+	//The two references: A alone with the transparent pen, B alone with the
+	//opaque one.
+	float onlyA[ 3 ], onlyB[ 3 ];
+	strokeA( false );
+	frame( Blend::Multiply, true );
+	sample( onlyA );
+	strokeB( false );
+	frame( Blend::Cover, true );
+	sample( onlyB );
+
+	//How much B hid, read off the only-B render. The deposit is the same on
+	//every channel, so the three readings are one number seen three times --
+	//and their spread is the first thing checked, because a coverage that
+	//differed by channel would mean the pigment was being applied as ink.
+	double hidden[ 3 ];
+	for( int c = 0; c < 3; ++c )
+		hidden[ c ] = std::log( std::max( static_cast< double >( onlyB[ c ] ), 1.0e-9 ) )
+		            / std::log( static_cast< double >( blue[ c ] ) );
+
+	int failures = 0;
+	std::printf( "  B alone hides %.4f %.4f %.4f of the sheet (one number, three channels)\n",
+	             hidden[ 0 ], hidden[ 1 ], hidden[ 2 ] );
+	{
+		const double lo = std::min( { hidden[ 0 ], hidden[ 1 ], hidden[ 2 ] } );
+		const double hi = std::max( { hidden[ 0 ], hidden[ 1 ], hidden[ 2 ] } );
+		const bool ok   = lo > 0.5 && hi < 0.999 && ( hi - lo ) < 5.0e-3;
+		std::printf( "  %-58s %s\n", "coverage is in range and the same on every channel", ok ? "ok" : "FAIL" );
+		if( !ok )
+			++failures;
+	}
+
+	std::printf( "\n  case                                  channel  measured  predicted    error\n" );
+	auto check = [ & ]( const char* what, const float measured[ 3 ], const double predicted[ 3 ] ) {
+		bool ok = true;
+		for( int c = 0; c < 3; ++c )
+		{
+			//Absolute, as in --beer: transmissions in 0..1.
+			const double error = std::fabs( static_cast< double >( measured[ c ] ) - predicted[ c ] );
+			if( error >= 2.0e-3 )
+				ok = false;
+			std::printf( "  %-38s %-7s %9.5f %10.5f %8.2e%s\n", c == 0 ? what : "",
+			             c == 0 ? "red" : ( c == 1 ? "green" : "blue" ),
+			             measured[ c ], predicted[ c ], error, ok ? "" : "  FAIL" );
+		}
+		if( !ok )
+			++failures;
+	};
+
+	double coverPredicted[ 3 ], liftPredicted[ 3 ], twicePredicted[ 3 ];
+	for( int c = 0; c < 3; ++c )
+	{
+		const double a = static_cast< double >( onlyA[ c ] );
+		const double b = static_cast< double >( onlyB[ c ] );
+		coverPredicted[ c ] = std::pow( a, 1.0 - hidden[ c ] ) * b;
+		liftPredicted[ c ]  = std::pow( a, 1.0 - hidden[ c ] );
+		twicePredicted[ c ] = std::pow( b, 1.0 - hidden[ c ] ) * b;
+	}
+
+	float measured[ 3 ];
+
+	//A transparent stroke, then an opaque one over it.
+	strokeA( false );
+	frame( Blend::Multiply, true );
+	strokeB( false );
+	frame( Blend::Cover, false );
+	sample( measured );
+	check( "cover over ink", measured, coverPredicted );
+
+	//The same, with the pen lifting instead.
+	strokeA( false );
+	frame( Blend::Multiply, true );
+	strokeB( false );
+	frame( Blend::Lift, false );
+	sample( measured );
+	check( "lift off ink", measured, liftPredicted );
+
+	//An opaque pen crossing itself: never darker than the pen.
+	strokeB( false );
+	frame( Blend::Cover, true );
+	strokeB( false );
+	frame( Blend::Cover, false );
+	sample( measured );
+	check( "cover over itself", measured, twicePredicted );
+	{
+		bool ok = true;
+		for( int c = 0; c < 3; ++c )
+			if( measured[ c ] < blue[ c ] - 2.0e-3f )
+				ok = false;
+		std::printf( "  %-58s %s\n", "an opaque pen never darkens beyond its own colour", ok ? "ok" : "FAIL" );
+		if( !ok )
+			++failures;
+	}
+
+	//The split sheet. A slow enough fade that a frame of it is nothing.
+	params.fadeSeconds  = 1.0e9f;
+	params.fadeByFigure = true;
+
+	//B in progress over a settled A: the sheet shader's coverage multiply.
+	strokeA( true );
+	frame( Blend::Multiply, true );
+	strokeB( false );
+	frame( Blend::Cover, false );
+	sample( measured );
+	check( "cover in progress over settled ink", measured, coverPredicted );
+
+	//B folded in over A: the compose pass's over blend.
+	strokeA( true );
+	frame( Blend::Multiply, true );
+	strokeB( true );
+	frame( Blend::Cover, false );
+	sample( measured );
+	check( "cover folded in over settled ink", measured, coverPredicted );
+
+	//The way back: the switch goes off with B still in progress, and A comes
+	//back UNDER it through the compose pass's under blend.
+	strokeA( true );
+	frame( Blend::Multiply, true );
+	strokeB( false );
+	frame( Blend::Cover, false );
+	params.fadeByFigure = false;
+	params.fadeSeconds  = 0.0f;
+	frame( Blend::Cover, false );
+	sample( measured );
+	check( "settled ink rejoining under cover", measured, coverPredicted );
+
+	sheet.DeInitGL();
+
+	std::printf( "\n  %s\n", failures == 0 ? "PASS" : "FAIL" );
+	return failures == 0 ? 0 : 1;
+}
+
+//---------------------------------------------------------------------------
+// --keepgoing
+//---------------------------------------------------------------------------
+//
+// On Closing -> Keep Going (#21): the figure coming home is not an event.
+//
+// Two halves. The first needs no GL and asks the crank directly: over many
+// would-be closures the layer never advances, nothing is counted as closed,
+// and the pen's path is continuous across every run boundary -- the run is
+// still cut where the figure comes home, and the wind-back of theta by one
+// figure has to put the pen exactly where it was. The same crank under Next
+// Hole is run beside it, so the check can show the machine really was
+// closing.
+//
+// The second asks the renderer: with Fade by Figure on and a fast fade, a
+// Keep Going drawing loses nothing, because nothing ever settles -- and the
+// same drawing under Next Hole loses most of itself, which is what proves the
+// check is measuring the thing it claims to.
+int runKeepGoing( const Target& target )
+{
+	std::printf( "keepgoing -- under Keep Going a closure is not an event\n\n" );
+
+	int failures = 0;
+
+	// The crank.
+	{
+		CrankParams params;
+		params.train.ringTeeth   = 96;
+		params.train.wheelTeeth  = 32;//closes every turn
+		params.train.mesh        = Mesh::Inside;
+		params.train.penFraction = 0.7;
+		//Not a whole number of turns a frame. At five a second on a one-turn
+		//figure every closure lands exactly on a frame boundary, no run is
+		//ever cut, and the boundary this check is about never happens; at 4.7
+		//the figure comes home mid-frame forty-odd times in the ten seconds.
+		params.turnsPerSecond    = 4.7;
+		params.layers            = 4;
+		params.creepTeethPerTurn = 0.5;//so the figure is precessing while it does it
+		params.stepsPerTurn      = 1440;
+		const float palette[ 12 ] = { 0.7f, 0.1f, 0.1f, 0.1f, 0.1f, 0.7f, 0.1f, 0.6f, 0.1f, 0.1f, 0.1f, 0.1f };
+		params.palette      = palette;
+		params.paletteCount = 4;
+
+		std::printf( "  on closing    closures   layers   runs   worst gap at a run boundary\n" );
+		for( int mode = 0; mode < 2; ++mode )
+		{
+			params.change = mode == 0 ? Change::KeepGoing : Change::Hole;
+
+			Crank crank;
+			crank.Restart( 1u );
+			std::vector< Step > steps;
+			std::vector< Run > runs;
+
+			int closed = 0, maxLayer = 0, runsSeen = 0;
+			double worstGap = 0.0;
+			for( int f = 0; f < 600; ++f )
+			{
+				crank.Advance( params, 1.0 / 60.0, steps, runs );
+				closed += crank.FiguresClosed();
+				maxLayer = std::max( maxLayer, crank.Layer() );
+				runsSeen += static_cast< int >( runs.size() );
+				for( size_t r = 1; r < runs.size(); ++r )
+				{
+					const Step& a = steps[ static_cast< size_t >( runs[ r - 1 ].first + runs[ r - 1 ].count - 1 ) ];
+					const Step& b = steps[ static_cast< size_t >( runs[ r ].first ) ];
+					worstGap      = std::max( worstGap, static_cast< double >( std::hypot( b.x - a.x, b.y - a.y ) ) );
+				}
+			}
+
+			//Ten seconds at 4.7 turns a second on a one-turn figure is forty-seven
+			//times round; the run count says the cut at the closure is still
+			//being made, and the gap says the pen did not move when it was.
+			bool ok;
+			if( mode == 0 )
+				ok = closed == 0 && maxLayer == 0 && runsSeen >= 640 && worstGap < 1.0e-6;
+			else
+				ok = closed >= 40 && maxLayer == 3;
+			if( !ok )
+				++failures;
+
+			std::printf( "  %-12s %9d %8d %6d   %10.2e  %s\n",
+			             mode == 0 ? "Keep Going" : "Next Hole", closed, maxLayer + 1, runsSeen, worstGap,
+			             ok ? "ok" : "FAIL" );
+		}
+	}
+
+	// The sheet.
+	{
+		auto total = [ & ]( Change change, bool fade ) {
+			CogwheelPlugin plugin( false );
+			if( !startPlugin( plugin, target ) )
+				return -1.0;
+			setMeasurementLook( plugin );
+			plugin.SetFloatParameter( PT_WHEEL, 32.0f );
+			plugin.SetFloatParameter( PT_RATE, 0.90f );
+			plugin.SetFloatParameter( PT_LAYERS, 4.0f );
+			plugin.SetFloatParameter( PT_WIPE, 0.0f );
+			plugin.SetFloatParameter( PT_CHANGE, static_cast< float >( change ) );
+			//A two-second fade, by figure, against six and a half seconds of
+			//drawing: a figure that settled early is gone.
+			plugin.SetFloatParameter( PT_FADE, fade ? 0.85f : 0.0f );
+			plugin.SetFloatParameter( PT_FADE_FIGURES, fade ? 1.0f : 0.0f );
+			for( int f = 0; f < 400; ++f )
+				renderFrame( plugin, target, f );
+			const double t = totalDensity( readFloats( target ) );
+			plugin.DeInitGL();
+			return t;
+		};
+
+		const double keepPlain = total( Change::KeepGoing, false );
+		const double keepFade  = total( Change::KeepGoing, true );
+		const double holePlain = total( Change::Hole, false );
+		const double holeFade  = total( Change::Hole, true );
+
+		std::printf( "\n  on closing    no fade      fade by figure\n" );
+		std::printf( "  Keep Going  %12.1f %14.1f\n", keepPlain, keepFade );
+		std::printf( "  Next Hole   %12.1f %14.1f\n", holePlain, holeFade );
+
+		//Nothing settles, so nothing fades: the two Keep Going totals are the
+		//same drawing. Next Hole settles a figure every turn and has to lose
+		//most of them, or the fade is not doing what the first half claims to
+		//have kept it from.
+		const bool keepOk = keepPlain > 0.0 && std::fabs( keepFade - keepPlain ) / keepPlain < 0.01;
+		const bool holeOk = holePlain > 0.0 && holeFade < 0.6 * holePlain;
+		if( !keepOk )
+		{
+			++failures;
+			std::printf( "  FAIL: a Keep Going drawing lost ink to Fade by Figure -- a closure was counted\n" );
+		}
+		if( !holeOk )
+		{
+			++failures;
+			std::printf( "  FAIL: the Next Hole drawing did not fade, so this check proves nothing\n" );
+		}
 	}
 
 	std::printf( "\n  %s\n", failures == 0 ? "PASS" : "FAIL" );
@@ -2166,6 +2537,8 @@ void usage()
 		"  --liveness  the defaults keep drawing; a stiff machine stops\n"
 		"  --figurefade  turning Fade by Figure off does not lose the drawing\n"
 		"  --settle    the frame a figure closes in puts its last stroke with that figure\n"
+		"  --blend     an opaque pen hides, a lifting pen takes ink off, and both compose exactly\n"
+		"  --keepgoing under Keep Going a closure is not an event\n"
 		"  --presets   every preset draws something with structure in it\n"
 		"  --defaults  the constructor's defaults ARE preset 1\n"
 		"  --hosts     presets survive all three host behaviours\n"
@@ -2321,6 +2694,8 @@ int main( int argc, char** argv )
 		run( "liveness", runLiveness );
 		run( "figurefade", runFigureFade );
 		run( "settle", runSettle );
+		run( "blend", runBlend );
+		run( "keepgoing", runKeepGoing );
 		run( "presets", runPresets );
 		if( wanted( "defaults" ) ) { ++ran; std::printf( "\n" ); failed += runDefaults(); }
 		if( wanted( "hosts" ) )    { ++ran; std::printf( "\n" ); failed += runHosts(); }

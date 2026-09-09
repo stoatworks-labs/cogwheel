@@ -57,6 +57,23 @@ enum class Change : int
 	Wheel,    ///< Same hole, another wheel off the set.
 	Both,
 	Nothing,  ///< Redraw the same figure in the next colour.
+
+	/// Nothing happens at all. The hand keeps turning, the pen stays down,
+	/// the same pen in the same hole carries on round -- and because the
+	/// wheel never leaves the ring, the slip carries with it, so a mesh a
+	/// little out of true keeps the figure precessing for as long as the
+	/// crank turns. A closure is not an event: nothing is counted, nothing
+	/// is folded in, nothing is wiped, and `Layers` has nothing to say.
+	///
+	/// #21 asked for it as "ignore close": with the fade rate right a growing
+	/// rosette is worth keeping, and every other entry here takes the pen
+	/// off the paper when the figure comes home. A stack of one already
+	/// keeps the pen down, but it still COUNTS the closure -- which with
+	/// Fade by Figure on folds the drawing so far into the settling sheet and
+	/// starts it fading. This entry does not.
+	///
+	/// Appended, not inserted: an option's elements are stored as numbers.
+	KeepGoing,
 	Count
 };
 

@@ -20,7 +20,7 @@ namespace stoatworks::about
     inline constexpr auto guide = "https://stoatworks-labs.com/software/cogwheel/guide/";
     inline constexpr auto page = "https://stoatworks-labs.com/software/cogwheel/";
     inline constexpr auto repo = "https://github.com/stoatworks-labs/cogwheel";
-    inline constexpr auto versionFallback = "v0.4.0";
+    inline constexpr auto versionFallback = "v0.5.0";
 
     inline constexpr auto org = "Stoatworks Labs";
     inline constexpr auto home = "https://stoatworks-labs.com";

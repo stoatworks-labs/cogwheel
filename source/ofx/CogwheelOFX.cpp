@@ -17,7 +17,8 @@
 /// What is mirrored is the **renderer**, because the renderer is GLSL. The
 /// `cpu` namespace below is a transcription of `render/Shaders.cpp`, constant
 /// for constant: the ink pass's closed form and its pedestal subtraction, the
-/// paper's tooth, the fade, Beer's law, the negative and the gear overlay.
+/// paper's tooth, the three ways ink meets ink, the fade, Beer's law, the
+/// negative and the gear overlay.
 /// **When editing one of those, edit the matching function here.**
 ///
 /// ===========================================================================
@@ -142,6 +143,10 @@ constexpr float kExtent     = 4.5f;
 constexpr float kSqrt2Pi    = 2.50662827463100050f;
 constexpr float kInvSqrt2Pi = 0.39894228040143268f;
 
+/// Mirrors `Hiding` in kConstants: how opaque a covering pen is per unit of
+/// deposit. See the ink fragment stage.
+constexpr float kHiding     = 2.0f;
+
 inline float saturate( float v )
 {
 	return v < 0.0f ? 0.0f : ( v > 1.0f ? 1.0f : v );
@@ -223,9 +228,12 @@ inline float paperTooth( float px, float py, float amount, float scale )
 //===========================================================================
 // The sheet, on the CPU.
 //
-// Three floats a pixel, bottom row first -- exactly as GL stores a texture and
+// Four floats a pixel, bottom row first -- exactly as GL stores a texture and
 // exactly as OFX hands its images over, so nothing anywhere in this file flips
-// a row. It holds optical DENSITY and never a colour; see render/Shaders.h.
+// a row. Three of them hold optical DENSITY and never a colour; the fourth is
+// COVERAGE, how much of whatever lies under this sheet an opaque pen has
+// hidden, and it is zero wherever only the transparent pen has drawn. See
+// render/Shaders.h and render/Sheet.h.
 //===========================================================================
 class Paper
 {
@@ -236,7 +244,7 @@ public:
 			return;
 		w = width;
 		h = height;
-		density.assign( static_cast< size_t >( w ) * h * 3, 0.0f );
+		density.assign( static_cast< size_t >( w ) * h * kChannels, 0.0f );
 	}
 
 	void clear()
@@ -245,7 +253,8 @@ public:
 	}
 
 	/// The fade pass: a multiply in place, exactly as the GL build's
-	/// glBlendFunc( GL_ZERO, GL_SRC_COLOR ) does it.
+	/// glBlendFunc( GL_ZERO, GL_SRC_COLOR ) does it -- coverage included, for
+	/// the reason the fade shader gives.
 	void fade( float retain )
 	{
 		if( retain >= 1.0f )
@@ -254,16 +263,38 @@ public:
 			v *= retain;
 	}
 
-	/// Add another sheet's density into this one and leave it alone, exactly as
-	/// the GL build's compose pass does with glBlendFunc( GL_ONE, GL_ONE ).
-	/// Absorptions add, which is what makes splitting the drawing in two exact
-	/// rather than an approximation.
-	void addFrom( const Paper& other )
+	/// Composite another sheet OVER this one and leave it alone, exactly as
+	/// the GL build's compose pass does with GL_ONE, GL_ONE_MINUS_SRC_ALPHA:
+	/// the fold-in of a figure that has just closed onto the figures that
+	/// settled before it. Where the other sheet's coverage is zero -- which
+	/// is everywhere for a transparent pen -- this is the sum of two
+	/// absorptions, which is what makes splitting the drawing in two exact.
+	void composeOver( const Paper& other )
 	{
 		if( other.density.size() != density.size() )
 			return;
-		for( size_t i = 0; i < density.size(); ++i )
-			density[ i ] += other.density[ i ];
+		for( size_t i = 0; i < density.size(); i += kChannels )
+		{
+			const float hidden = std::clamp( other.density[ i + 3 ], 0.0f, 1.0f );
+			for( int c = 0; c < kChannels; ++c )
+				density[ i + c ] = other.density[ i + c ] + density[ i + c ] * ( 1.0f - hidden );
+		}
+	}
+
+	/// Composite another sheet UNDER this one: the GL build's
+	/// GL_ONE_MINUS_DST_ALPHA, GL_ONE. The way back when Fade by Figure goes
+	/// off -- the settled figures were drawn first, and an opaque figure in
+	/// progress keeps hiding what it hid.
+	void composeUnder( const Paper& other )
+	{
+		if( other.density.size() != density.size() )
+			return;
+		for( size_t i = 0; i < density.size(); i += kChannels )
+		{
+			const float hidden = std::clamp( density[ i + 3 ], 0.0f, 1.0f );
+			for( int c = 0; c < kChannels; ++c )
+				density[ i + c ] += other.density[ i + c ] * ( 1.0f - hidden );
+		}
 	}
 
 	/// Give the memory back. The settled sheet is only allocated while Fade by
@@ -279,19 +310,21 @@ public:
 	int width() const { return w; }
 	int height() const { return h; }
 
+	/// Three densities and a coverage.
 	const float* at( int x, int y ) const
 	{
-		return density.data() + ( static_cast< size_t >( y ) * w + x ) * 3;
+		return density.data() + ( static_cast< size_t >( y ) * w + x ) * kChannels;
 	}
 
 	float* at( int x, int y )
 	{
-		return density.data() + ( static_cast< size_t >( y ) * w + x ) * 3;
+		return density.data() + ( static_cast< size_t >( y ) * w + x ) * kChannels;
 	}
 
 	bool ready() const { return w > 0 && h > 0 && !density.empty(); }
 
 private:
+	static constexpr int kChannels = 4;
 	int w = 0, h = 0;
 	std::vector< float > density;
 };
@@ -319,6 +352,7 @@ struct DepositParams
 	float tooth     = 0.0f;
 	float toothScale = 220.0f;
 	float aspect    = 16.0f / 9.0f;
+	Blend blend     = Blend::Multiply;
 };
 
 /// One step interval, transcribed from `kInkVertexBody` and
@@ -427,10 +461,25 @@ void depositSegment( Paper& paper, const Step& a, const Step& b,
 			if( !( deposit > 0.0f ) )
 				continue;
 
+			//How the ink meets what is already there: the ink fragment stage,
+			//with GL_ONE, GL_ONE_MINUS_SRC_ALPHA written out by hand. The
+			//transparent pen adds; the opaque pen hides a fraction and puts its
+			//own pigment there; the lifting pen hides and puts nothing back.
 			float* cell = paper.at( x, y );
-			cell[ 0 ] += absorb[ 0 ] * deposit;
-			cell[ 1 ] += absorb[ 1 ] * deposit;
-			cell[ 2 ] += absorb[ 2 ] * deposit;
+			if( p.blend == Blend::Multiply )
+			{
+				cell[ 0 ] += absorb[ 0 ] * deposit;
+				cell[ 1 ] += absorb[ 1 ] * deposit;
+				cell[ 2 ] += absorb[ 2 ] * deposit;
+			}
+			else
+			{
+				const float hidden = 1.0f - std::exp( -kHiding * deposit );
+				const float keep   = 1.0f - hidden;
+				for( int c = 0; c < 3; ++c )
+					cell[ c ] = ( p.blend == Blend::Cover ? absorb[ c ] * hidden : 0.0f ) + cell[ c ] * keep;
+				cell[ 3 ] = hidden + cell[ 3 ] * keep;
+			}
 		}
 	}
 }
@@ -578,10 +627,14 @@ public:
 					                         && px < s.settled->width() && py < s.settled->height() )
 					                       ? s.settled->at( px, py )
 					                       : nullptr;
+					//The figure in progress may have hidden some of what settled,
+					//if it was drawn with an opaque pen; its coverage says how
+					//much. The sheet shader does the same multiply.
+					const float showing = 1.0f - std::clamp( density[ 3 ], 0.0f, 1.0f );
 					for( int c = 0; c < 3; ++c )
 					{
 						const float total = std::max( density[ c ], 0.0f )
-						                    + ( older != nullptr ? std::max( older[ c ], 0.0f ) : 0.0f );
+						                    + ( older != nullptr ? std::max( older[ c ], 0.0f ) * showing : 0.0f );
 						transmit[ c ] = std::exp( -total );
 					}
 				}
@@ -791,7 +844,9 @@ const Decl kDecls[] = {
 	        "1 the pen never lifts and Creep is the only thing keeping it alive.",
 	        "Layers" ),
 	OPTION( PT_CHANGE, "onClosing", "On Closing", 0.0f, kChangeNames, kChangeCount,
-	        "What moves when a figure closes and the next layer starts." ),
+	        "What moves when a figure closes and the next layer starts. Keep Going "
+	        "makes the closure no event at all: the pen stays down, the same pen in "
+	        "the same hole carries on round, and the slip keeps the figure growing." ),
 	TOGGLE( PT_WIPE, "wipeSheet", "Wipe Sheet", 1.0f,
 	        "Start a fresh sheet when the whole stack is finished, rather than drawing "
 	        "the next stack over it." ),
@@ -806,6 +861,13 @@ const Decl kDecls[] = {
 	        "line is the same darkness however fast the hand moved -- which is what "
 	        "came in the box. A fibre tip feeds per unit of time, so it blooms wherever "
 	        "the pen slows down, which at a cusp is a great deal." ),
+	OPTION( PT_BLEND, "blend", "Blend", 0.0f, kBlendNames, kBlendCount,
+	        "How new ink meets the ink already on the sheet. Multiply is transparent "
+	        "ink: absorptions add and crossings darken, which is what every pen in "
+	        "the box does. Cover is opaque pigment -- a paint marker -- so new ink "
+	        "hides what is under it and a pen never darkens beyond its own colour; a "
+	        "white pen in this mode is white-out. Lift is an eraser in the pen hole: "
+	        "the figure is drawn in whatever was underneath before the ink." ),
 	COLOUR( PT_INK_R, "ink", "Ink",
 	        "The pen's colour, used when Pens is set to Ink Colour. It is an absorption, "
 	        "not a light: a pen of this colour laid down once transmits exactly this "
@@ -910,7 +972,7 @@ constexpr unsigned int kPresetParamIDs[] = {
 	PT_RING, PT_WHEEL, PT_MESH, PT_PEN, PT_SNAP_SET, PT_SNAP_HOLES,
 	PT_RATE, PT_DETAIL, PT_CREEP, PT_SKIP, PT_SKIP_TEETH,
 	PT_LAYERS, PT_CHANGE, PT_WIPE,
-	PT_PEN_SET, PT_PEN_TYPE, PT_INK_R, PT_INK_G, PT_INK_B, PT_FLOW, PT_NIB, PT_SPREAD,
+	PT_PEN_SET, PT_PEN_TYPE, PT_BLEND, PT_INK_R, PT_INK_G, PT_INK_B, PT_FLOW, PT_NIB, PT_SPREAD,
 	PT_PAPER_R, PT_PAPER_G, PT_PAPER_B, PT_GRAIN, PT_TOOTH, PT_FADE, PT_FADE_FIGURES, PT_PRINT,
 	PT_ZOOM, PT_GEARS
 };
@@ -1502,9 +1564,10 @@ private:
 			}
 			else if( settledInUse )
 			{
-				//The switch has gone off. Everything settled comes back, or the
-				//drawing loses every figure that had closed.
-				paper.addFrom( settled );
+				//The switch has gone off. Everything settled comes back -- under
+				//the figure in progress -- or the drawing loses every figure that
+				//had closed.
+				paper.composeUnder( settled );
 				settled.release();
 				settledInUse = false;
 			}
@@ -1525,6 +1588,7 @@ private:
 			deposit.tooth        = resolved.render.tooth;
 			deposit.toothScale   = resolved.render.toothScale;
 			deposit.aspect       = aspect;
+			deposit.blend        = resolved.render.blend;
 
 			for( const Run& run : runs )
 			{
@@ -1546,7 +1610,7 @@ private:
 				//drawn left a dot at every figure's starting point (#14).
 				if( byFigure && run.closes )
 				{
-					settled.addFrom( paper );
+					settled.composeOver( paper );
 					paper.clear();
 				}
 			}

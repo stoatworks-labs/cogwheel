@@ -62,7 +62,9 @@ Train Crank::CurrentTrain( const CrankParams& params ) const
 	//they made when the previous figure closed, and it is derived from the seed
 	//rather than remembered, so scrubbing the transport cannot desynchronise it
 	//from the picture.
-	if( layer <= 0 || params.change == Change::Nothing )
+	//Keep Going never leaves layer 0, so the second test is belt and braces
+	//-- but it says what is meant, which is that the sequence does not apply.
+	if( layer <= 0 || params.change == Change::Nothing || params.change == Change::KeepGoing )
 		return t;
 
 	if( params.change == Change::Wheel || params.change == Change::Both )
@@ -194,6 +196,14 @@ Geometry Crank::Advance( const CrankParams& params, double frameSeconds,
 
 	const double closeAt = kTwoPi * static_cast< double >( geometry.turnsToClose );
 
+	//Keep Going: the figure coming home is not an event. The run is still cut
+	//there -- the loop below bounds each run by the closure so the same code
+	//serves every mode -- but nothing downstream is told, and theta is wound
+	//back by one figure so it does not grow without bound over a long night.
+	//That wind-back is exact: a closed figure is periodic in theta with the
+	//period closeAt for any fixed slip, so the pen is where it was.
+	const bool keepGoing = params.change == Change::KeepGoing;
+
 	//How much of the figure this frame covers, and therefore how many steps it
 	//is worth. Steps are spent per turn rather than per second, so the ink lands
 	//evenly along the line however fast the hand is moving -- and the total
@@ -294,11 +304,20 @@ Geometry Crank::Advance( const CrankParams& params, double frameSeconds,
 
 		//Decided before the run is stored, so the renderer can tell the last
 		//stroke of a figure from the first stroke of the next one inside the
-		//same frame. See Run::closes.
-		run.closes = theta >= closeAt - 1.0e-9;
+		//same frame. See Run::closes. Under Keep Going no run ever closes:
+		//the renderer must not fold anything in, because nothing finished.
+		const bool home = theta >= closeAt - 1.0e-9;
+		run.closes      = home && !keepGoing;
 		runs.push_back( run );
 
-		if( run.closes )
+		if( home && keepGoing )
+		{
+			theta -= closeAt;
+			if( theta < 0.0 )
+				theta = 0.0;
+			figurePhase = 0.0;
+		}
+		else if( home )
 		{
 			completeFigure( params );
 			geometry = Solve( CurrentTrain( params ) );

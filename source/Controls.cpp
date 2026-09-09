@@ -17,7 +17,7 @@ const char* const kSyncNames[ kSyncCount ] = {
 const char* const kDetailNames[ kDetailCount ] = { "Draft", "Normal", "Fine" };
 
 const char* const kChangeNames[ kChangeCount ] = {
-	"Next Hole", "Next Wheel", "Wheel and Hole", "Same Figure"
+	"Next Hole", "Next Wheel", "Wheel and Hole", "Same Figure", "Keep Going"
 };
 
 const char* const kPenSetNames[ kPenSetCount ] = {
@@ -27,6 +27,8 @@ const char* const kPenSetNames[ kPenSetCount ] = {
 const char* const kPrintNames[ kPrintCount ] = { "Positive", "Negative" };
 
 const char* const kPenTypeNames[ kPenTypeCount ] = { "Ballpoint", "Fibre Tip" };
+
+const char* const kBlendNames[ kBlendCount ] = { "Multiply", "Cover", "Lift" };
 
 int Option( float value, int count )
 {
@@ -172,6 +174,9 @@ Resolved Resolve( const float* p, double bpm, bool overInput )
 	//-----------------------------------------------------------------------
 	r.render.perDistance =
 		Option( p[ PT_PEN_TYPE ], kPenTypeCount ) == static_cast< int >( PenType::Ballpoint );
+
+	//How the ink meets what is already on the sheet. See Blend in Sheet.h.
+	r.render.blend = static_cast< Blend >( Option( p[ PT_BLEND ], kBlendCount ) );
 
 	const float darkness = Exponential( p[ PT_FLOW ], 0.05f, 50.0f );
 	r.render.flow        = darkness * r.render.nibSigma;

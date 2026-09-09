@@ -459,3 +459,84 @@ Tint. Renaming is the one thing a saved composition does not survive, so a
 colour set in a 0.3.x composition reverts to its default once and the release
 notes say so; exported XML survives, because both builds' loaders know the
 old names. `Gear Tint Green` is fifteen characters against a limit of sixteen.
+
+## 2026-09-09 — v0.5.0: Keep Going, and two more pens (#20, #21)
+
+The same operator, the same evening as v0.4.0, two feature requests. Both are
+things a person at the table can do, which is the test for whether a request
+belongs in this plugin at all.
+
+### Keep Going (#21)
+
+"Ignore close": with the fade rate right, a growing rosette is worth keeping,
+and every entry in `On Closing` takes the pen off the paper when the figure
+comes home. It is a fifth element of that dropdown rather than a switch,
+because "what happens when the figure closes — nothing" is the honest answer
+to the question that dropdown asks, and because an option's elements are
+append-only and a switch would have been one more parameter.
+
+It is **not** `Layers = 1`, and that took a moment to see. A stack of one keeps
+the pen down — `completeFigure` winds theta back and carries the slip — but it
+still *counts* the closure: `Run::closes` is set, `FiguresClosed()` ticks, and
+with Fade by Figure on the renderer folds the drawing so far into the settled
+sheet at every closure and starts it fading. That is exactly the "closed and
+moved on" the reporter did not want. Under Keep Going no run ever closes. The
+run is still cut where the figure comes home (the loop bounds every run by the
+closure, and one code path is better than two), theta is wound back by one
+figure so it stays bounded over a long night, and that wind-back is exact: a
+closed figure is periodic in theta for any fixed slip, so the pen is where it
+was. `cgtest --keepgoing` checks the pen does not move at the cut, that the
+layer never advances, and that Fade by Figure takes nothing from a Keep Going
+drawing while taking two thirds of the same drawing under Next Hole.
+
+A harness trap worth writing down: the first version cranked at exactly five
+turns a second on a one-turn figure, so every closure landed on a frame
+boundary, no run was ever cut, and the boundary the check is about never
+happened — it reported 600 runs in 600 frames under *both* modes and could not
+tell them apart. 4.7 turns a second puts the closure mid-frame.
+
+### Blend (#20)
+
+The ask was add, subtract and overlay. "Add" is not something ink does and it
+is not added: `Print → Negative` already produces the additive look, because a
+multiply drawing photographed inverted *is* a screen of the inverse. The other
+two are real pens, and they are what `Blend` is:
+
+- **Multiply** — transparent ink, the default, the only one Beer's law
+  describes and the only one `--beer` is about.
+- **Cover** — opaque pigment. A paint marker, gouache, correction fluid.
+- **Lift** — the pen takes ink off. A bleach pen, or an eraser in the hole.
+
+The mechanism is one operation. An opaque nib hides a fraction
+`h = 1 - exp( -Hiding * deposit )` of what is under it and puts `h` times its
+own absorption there; the eraser is the same with nothing put back. The
+buffer's alpha — unused until now — carries the accumulated `h`, the ink pass
+draws with `GL_ONE, GL_ONE_MINUS_SRC_ALPHA` in every mode (at alpha 0, which is
+what the transparent pen writes, that is the add it always was), the fade
+multiplies alpha down with the rest so faded pigment stops hiding, and the
+Fade by Figure split composites the figure in progress *over* the settled
+sheet at the fold-in and the settled sheet *under* it on the way back. The
+sheet shader multiplies the settled tap by `1 - alpha`. `Hiding` is 2, which
+hides about nine tenths at the core of a default stroke; it has Beer's shape so
+that two half-coats compose to exactly one whole one however the path is
+chopped — `--detail`'s argument, applied to hiding.
+
+Two consequences fall out. A covering pen never darkens beyond its own colour,
+however often it crosses itself, because `h` saturates at 1 and the density
+under it tends to the pen's absorption. And a *white* covering pen is
+white-out: it hides and puts back an absorption of zero. So "subtract" is
+Cover with the Ink set to white or to the paper colour, and Lift is the same
+thing with the colour ignored.
+
+`cgtest --blend` is an identity as parameter-free as `--beer`:
+`shown( A then B ) = shown( only A )^( 1 - h ) · shown( only B )`, with `h`
+read off the only-B render as `ln( shown_B ) / ln( C_B )` — one number seen on
+three channels, and the first thing checked is that it *is* one number. It
+holds to 1e-8 through the direct path, the sheet shader's coverage multiply,
+the compose pass's over blend and its under blend. The OFX mirror went from
+three floats a pixel to four for the same reason.
+
+`Blend` went into the preset table, because it is what kind of pen is in the
+hole: a preset chosen with Lift still selected would draw nothing, which reads
+as a broken preset rather than as an eraser left in the hole. The static_asserts
+and `check_presets.py` grew a column; every factory row is Multiply.

@@ -10,7 +10,7 @@
 > that ships. A control sweep fails if any parameter turns out to do nothing —
 > it found one on the first run. Both plugins have since been **loaded into
 > Resolume Arena 7.27.1 on macOS and on Windows** — they register with the right
-> names, ids and categories, expose all 49 controls with nothing truncated,
+> names, ids and categories, expose all 50 controls with nothing truncated,
 > render, and hold a factory preset through live rendering. The OpenFX build has
 > been loaded by **DaVinci Resolve Studio 21.0.2.4**, which lists both plugins in
 > its OpenFX library, and renders correctly through an independent OFX host. It
@@ -114,7 +114,9 @@ the sheet being wrong.
 **A drawing is a stack of figures.** When one closes you lift the pen, move to
 another hole, change the pen and draw the next on top — which is how the
 multicoloured Spirograph drawing everybody remembers is actually made. That is
-`Layers`.
+`Layers`. Or you never lift it at all: `On Closing → Keep Going` makes the
+closure no event whatsoever, and the figure goes on precessing for as long as
+the crank turns.
 
 If you are ever tempted to draw a spirograph, stop: either it already falls out
 of the machine, or the machine is wrong somewhere and that is the bug.
@@ -128,6 +130,13 @@ fast your hand moved. A fibre tip feeds by capillary action, per unit of
 deal. `Pen Type` is that choice, and both go through the same closed form; the
 only difference is whether a step's quantum of ink is `Flow × dt` or
 `Flow × length`. Nothing anywhere computes a speed or divides by one.
+
+`Blend` is how new ink meets the ink already on the sheet, and each entry is a
+real thing you can put in the pen hole: transparent ink, which is what every
+pen in the box does and the only one Beer's law describes; opaque pigment — a
+paint marker — that hides what is under it and never darkens beyond its own
+colour; and a pen that lifts ink off. `cgtest --blend` holds the last two to an
+identity as parameter-free as the one for the first.
 
 `Show Gears` puts the ring, the wheel, the arm and the pen on screen, with the
 real tooth counts, so they can be counted.
@@ -228,6 +237,10 @@ never mentions the plist), and then runs the harness:
 | `cgtest --rate` | one second of cranking is the same drawing at 24, 60 and 120 fps |
 | `cgtest --beer` | two pens crossing multiply, they do not add |
 | `cgtest --liveness` | the defaults keep finding fresh sheet; a mesh that is exactly true provably stops |
+| `cgtest --figurefade` | turning Fade by Figure off does not lose the drawing |
+| `cgtest --settle` | the frame a figure closes in puts its last stroke with that figure |
+| `cgtest --blend` | an opaque pen hides, a lifting pen takes ink off, and both compose exactly with the split sheet |
+| `cgtest --keepgoing` | under Keep Going a closure is not an event: the pen does not move, and nothing settles |
 | `cgtest --presets` | every preset draws something with structure in it |
 | `cgtest --defaults` | the constructor's defaults *are* preset 1 |
 | `cgtest --hosts` | presets survive all three things a host can do with a value event |

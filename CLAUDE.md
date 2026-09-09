@@ -33,6 +33,8 @@ Disable with `-DBUILD_OFX=OFF`.
 - The drawing is independent of frame rate: `./build/cgtest --rate`
 - Two pens crossing MULTIPLY: `./build/cgtest --beer`
 - The closing frame's last stroke settles with its own figure: `./build/cgtest --settle`
+- An opaque pen hides and a lifting pen takes ink off, exactly: `./build/cgtest --blend`
+- Under Keep Going a closure is not an event: `./build/cgtest --keepgoing`
 - The defaults keep drawing, a true mesh stops: `./build/cgtest --liveness`
 - Every preset draws something: `./build/cgtest --presets`
 - The defaults ARE preset 1: `./build/cgtest --defaults`
@@ -66,6 +68,13 @@ Disable with `-DBUILD_OFX=OFF`.
   GPU habit. The sheet is the drawing.
 - **The paper's tooth is applied at deposit, not at readout.** Grain and Tooth
   are two controls because they are two questions.
+- **The paper's alpha is COVERAGE, and it is zero under the transparent pen.**
+  `Blend → Cover` and `Lift` write it; the ink pass is `GL_ONE,
+  GL_ONE_MINUS_SRC_ALPHA` in every mode, which at alpha 0 is the add it always
+  was. Fold-ins go OVER, the way back goes UNDER. `--blend` is the test.
+- **`On Closing → Keep Going` is not `Layers = 1`.** A stack of one keeps the
+  pen down but still counts the closure, and Fade by Figure settles on it;
+  Keep Going never sets `Run::closes` at all.
 - **Presets are an OVERRIDE, not a write** — Resolume does not consume value
   events. `seedHostValues()` must run before `applyPreset` can.
 - **The OFX build replays from frame zero**, because paper does not forget.

@@ -16,13 +16,13 @@ evaluates a curve.** Set the two tooth counts and the figure follows.
 > ships, and a control sweep fails if any parameter turns out to do nothing.
 >
 > **Both plugins have been loaded and run in Resolume Arena 7.27.1, on macOS and on Windows** —
-> they register with the right names and categories, expose all 48 controls with nothing
+> they register with the right names and categories, expose all 50 controls with nothing
 > truncated, render, and hold a factory preset through live rendering. **DaVinci Resolve Studio
 > 21.0.2.4 lists the OpenFX build**, and it renders correctly in an independent OFX host. What is
 > still unconfirmed is narrower: the OpenFX build has not been driven over a clip inside Resolve,
 > so its CPU renderer is proven to run and not yet proven to match the GPU one pixel for pixel.
 >
-> Released at **v0.2.0**.
+> Released at **v0.5.0**.
 >
 > This codebase was created with AI assistance, directed and reviewed by a human author.
 
@@ -158,6 +158,17 @@ There are three ways out, and all three are things a person at the table actuall
 
 If the picture has gone still, one of those three is off.
 
+There is a fourth way, new in v0.5.0, and it is the opposite of the other three: **On Closing →
+Keep Going**. When the figure comes home nothing happens at all. The pen stays down, the same pen
+in the same hole carries on round, and with **Creep** on the figure keeps precessing for as long
+as the crank turns — the growing rosette, kept. A closure is not an event under Keep Going:
+nothing is counted, nothing is wiped, **Layers** has nothing to do (it reads `keeps going` to say
+so), and **Fade by Figure** has nothing to settle. With the ordinary **Fade** the drawing reaches
+whatever balance the fade rate sets and stays there.
+
+A stack of one **Layer** also keeps the pen down, but it still *counts* each closure — which with
+Fade by Figure on settles the drawing so far and starts it fading. Keep Going does not.
+
 ---
 
 ## The pen
@@ -168,6 +179,23 @@ If the picture has gone still, one of those three is off.
   darkness however fast your hand moved. That is what came in the box, and it is the default.
 - A **fibre tip** feeds by capillary action, per unit of *time*, so it blooms wherever the pen
   slows down — which at a cusp is a great deal.
+
+**Blend** is how new ink meets the ink already on the sheet, and each entry is a real thing you
+can put in the pen hole rather than a blend mode off a menu:
+
+- *Multiply* is transparent ink — what every pen in the box does. Absorptions add, crossings
+  darken, and red over blue is the near-black it is on the table. This is the default and the
+  only one the next section describes.
+- *Cover* is opaque pigment — a paint marker. New ink hides what is under it, a crossing is the
+  colour of whichever pen came second, and a pen never darkens beyond its own colour however
+  often it crosses itself. Set **Pens** to *Ink Colour* and the **Ink** sliders to white, or to
+  the paper colour, and Cover is white-out.
+- *Lift* is an eraser in the pen hole. The pen's colour is ignored and the figure is drawn in
+  whatever was underneath before the ink was laid — which on a clean sheet is nothing at all.
+
+If what you wanted was *add* — a line that brightens the sheet — that is **Print → Negative**,
+because ink cannot add light. All three compose exactly with **Fade by Figure**, and a preset sets
+Blend along with the rest of the pen.
 
 **Flow** is how dark the line is. It is multiplied by the nib's width internally, so widening the
 nib does not lighten the line — a broader pen delivers proportionally more ink, which is what
@@ -307,6 +335,9 @@ radius as a fraction of the frame height, so at 1.0 the ring exactly fills it.
 
 **The lines look polygonal.** **Detail** is on *Draft*. Move it to *Normal*.
 
+**Nothing draws, and Blend is on Lift.** An eraser on a clean sheet takes nothing off. Set Blend
+back to *Multiply*.
+
 **Nothing draws, and Wheel Teeth reads `too big`.** The wheel is as big as the ring or bigger and
 **Mesh** is on *Inside*. Set Mesh to *Outside* or choose a smaller wheel. The log says the same.
 
@@ -319,6 +350,7 @@ pale line on a dark ground.
 not allocate, both look like "it does nothing" from outside and both say so there.
 
 **A control does nothing.** Some are conditional: **Skip Size** needs **Skip Chance** above zero,
-**On Closing** and **Pens** need **Layers** above one, the **Ink** sliders only apply when
+**On Closing** and **Pens** need **Layers** above one, **Layers** and **Pens** do nothing under
+*Keep Going* because the pen never comes off the paper, the **Ink** sliders only apply when
 **Pens** is set to *Ink Colour*, and **Ink from Clip** / **Paper from Clip** exist only on the
 effect.

@@ -93,11 +93,23 @@ inline void setMultiplyBlend()
 	glBlendFunc( GL_ZERO, GL_SRC_COLOR );
 }
 
-/// Premultiplied "over", for putting a finished image onto the output.
+/// Premultiplied "over", for putting a finished image onto the output -- and
+/// for the ink pass, where a fragment's alpha is how much of what was under it
+/// the new ink hides. A transparent pen writes alpha 0 and this is then the
+/// plain additive pass it always was.
 inline void setOverBlend()
 {
 	glEnable( GL_BLEND );
 	glBlendFunc( GL_ONE, GL_ONE_MINUS_SRC_ALPHA );
+}
+
+/// Premultiplied "under": the source goes BEHIND what is already there,
+/// dst = dst + src * ( 1 - dst.a ). For folding the settled sheet back under
+/// the figure in progress, which is the one direction "over" gets wrong.
+inline void setUnderBlend()
+{
+	glEnable( GL_BLEND );
+	glBlendFunc( GL_ONE_MINUS_DST_ALPHA, GL_ONE );
 }
 
 } // namespace cogwheel

@@ -22,6 +22,14 @@ const float Sqrt2Pi    = 2.50662827463100050;
 const float InvSqrt2Pi = 0.39894228040143268;
 const float Pi         = 3.14159265358979324;
 const float TwoPi      = 6.28318530717958648;
+
+//How opaque a covering pen is, per unit of deposit: coverage is
+//1 - exp( -Hiding * deposit ), the same shape as Beer's law so that two
+//half-coats compose to exactly one whole one however the path is chopped
+//(cgtest --detail's argument, applied to hiding). At 2, the core of a stroke
+//at the default Flow hides about nine tenths of what was under it. The OFX
+//build mirrors this constant.
+const float Hiding     = 2.0;
 )";
 
 // ---------------------------------------------------------------------------
@@ -268,6 +276,7 @@ uniform sampler2D ClipTexture;
 uniform vec2      MaxUV;
 uniform float     Tooth;
 uniform float     ToothScale;
+uniform float     Blend;       //0 transparent ink, 1 opaque pigment, 2 the pen lifts ink
 
 out vec4 fragColor;
 
@@ -323,7 +332,28 @@ void main()
 		absorb = -log( clamp( picked, vec3( 1.0e-4 ), vec3( 1.0 ) ) );
 	}
 
-	fragColor = vec4( absorb * deposit, 0.0 );
+	//How the ink meets what is already there. Drawn with GL_ONE,
+	//GL_ONE_MINUS_SRC_ALPHA in every mode, so the alpha written here is the
+	//whole difference between them.
+	//
+	//A transparent pen writes alpha 0 and its absorption simply ADDS -- the
+	//buffer is a sum of absorptions and the display pass an exponential of
+	//it, which is Beer's law and the reason crossings come out right. An
+	//opaque pen writes the fraction of the sheet it hides, so the buffer
+	//keeps hidden * new + ( 1 - hidden ) * old: what shows through is the pen
+	//itself, never darker than the pen, and whatever was underneath in
+	//proportion to what the pigment failed to cover. The lifting pen is the
+	//opaque pen with no colour of its own: it hides, and puts nothing back.
+	if( Blend < 0.5 )
+	{
+		fragColor = vec4( absorb * deposit, 0.0 );
+	}
+	else
+	{
+		float hidden = 1.0 - exp( -Hiding * deposit );
+		vec3 pigment = Blend < 1.5 ? absorb : vec3( 0.0 );
+		fragColor    = vec4( pigment * hidden, hidden );
+	}
 }
 )";
 
@@ -344,18 +374,22 @@ out vec4 fragColor;
 
 void main()
 {
-	//Alpha is 1 so that the blend leaves it alone. Nothing reads it; it is
-	//there because an RGBA target has it.
-	fragColor = vec4( vec3( Retain ), 1.0 );
+	//Alpha fades with the rest. It is the coverage an opaque pen left behind
+	//-- see the ink stage -- and pigment that has faded to nothing must not
+	//go on hiding the sheet beneath it.
+	fragColor = vec4( vec3( Retain ), Retain );
 }
 )";
 
 // ---------------------------------------------------------------------------
 // The sheet.
 // ---------------------------------------------------------------------------
-// Add one sheet's density into another. Drawn with additive blending, which is
-// what makes this a compose and not a copy: it is used to fold the figure that
-// has just closed into the settled sheet, and absorptions add.
+// Composite one sheet into another. Drawn with a premultiplied over or under
+// blend chosen by the caller, which is what makes this a compose and not a
+// copy: it folds the figure that has just closed onto the settled sheet, or
+// the settled sheet back under the figure in progress. The source's alpha is
+// its coverage, and goes through untouched; for a transparent pen it is zero
+// everywhere and either blend is the plain sum of two absorptions.
 const char* const kComposeFragmentBody = R"(
 in vec2 uv;
 uniform sampler2D Source;
@@ -364,10 +398,8 @@ out vec4 fragColor;
 
 void main()
 {
-	//Alpha is 0, not 1. The blend is GL_ONE, GL_ONE, so whatever goes here is
-	//ADDED to the destination's alpha, and the destination's alpha is not ours
-	//to touch. The fade pass writes 1 for the opposite reason: it multiplies.
-	fragColor = vec4( max( texture( Source, uv ).rgb, vec3( 0.0 ) ), 0.0 );
+	vec4 source = texture( Source, uv );
+	fragColor   = vec4( max( source.rgb, vec3( 0.0 ) ), clamp( source.a, 0.0, 1.0 ) );
 }
 )";
 
@@ -443,18 +475,22 @@ void main()
 	//round on a 16:9 output.
 	vec2 paper = vec2( ( uv.x - 0.5 ) * 2.0 * SheetAspect, ( uv.y - 0.5 ) * 2.0 );
 
-	vec3 density = max( texture( PaperTexture, uv ).rgb, vec3( 0.0 ) );
+	vec4 sheetTap = texture( PaperTexture, uv );
+	vec3 density  = max( sheetTap.rgb, vec3( 0.0 ) );
 
 	//Fading by figure splits the drawing in two: the settled sheet, which
 	//fades, and the figure being drawn, which does not. Summing them is exact
 	//rather than an approximation of the single-buffer case -- these are
 	//absorptions and absorptions add, which is the same reason the ink pass
-	//sums instead of taking a max.
+	//sums instead of taking a max. The figure in progress may also have
+	//HIDDEN some of what settled, if it was drawn with an opaque pen: its
+	//alpha says how much, and it is zero for the transparent one.
 	//
 	//UseSettled is 0 in the ordinary case, where the sampler is bound to the
 	//blank texel and this multiply discards it. A branch would cost more than
 	//the tap it saves.
-	density += UseSettled * max( texture( SettledTexture, uv ).rgb, vec3( 0.0 ) );
+	density += UseSettled * max( texture( SettledTexture, uv ).rgb, vec3( 0.0 ) )
+	         * ( 1.0 - clamp( sheetTap.a, 0.0, 1.0 ) );
 
 	vec3 sheet = mix( PaperColour, clip, PaperFromClip );
 

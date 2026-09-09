@@ -70,6 +70,9 @@ enum ParamId : unsigned int
 	PT_INK_G,
 	PT_INK_B,
 	PT_PEN_TYPE,
+	// Inserted here in 0.5.0, mid-list, which is safe for the same reason
+	// PT_PAPER_CLEAR was: Resolume and the XML export both match by name.
+	PT_BLEND,
 	PT_FLOW,
 	PT_NIB,
 	PT_SPREAD,
@@ -196,6 +199,7 @@ constexpr int kChangeCount = static_cast< int >( Change::Count );
 constexpr int kPenSetCount = static_cast< int >( PenSet::Count );
 constexpr int kPrintCount  = static_cast< int >( Print::Count );
 constexpr int kPenTypeCount = static_cast< int >( PenType::Count );
+constexpr int kBlendCount   = static_cast< int >( Blend::Count );
 
 extern const char* const kMeshNames[ kMeshCount ];
 extern const char* const kSyncNames[ kSyncCount ];
@@ -204,6 +208,7 @@ extern const char* const kChangeNames[ kChangeCount ];
 extern const char* const kPenSetNames[ kPenSetCount ];
 extern const char* const kPrintNames[ kPrintCount ];
 extern const char* const kPenTypeNames[ kPenTypeCount ];
+extern const char* const kBlendNames[ kBlendCount ];
 
 /// The most layers a stack may hold, and therefore the size of the palette
 /// buffer that is filled once per frame rather than allocated.

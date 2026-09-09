@@ -21,7 +21,7 @@ constexpr unsigned int kPresetParamIDs[] = {
 	PT_RING, PT_WHEEL, PT_MESH, PT_PEN, PT_SNAP_SET, PT_SNAP_HOLES,
 	PT_RATE, PT_DETAIL, PT_CREEP, PT_SKIP, PT_SKIP_TEETH,
 	PT_LAYERS, PT_CHANGE, PT_WIPE,
-	PT_PEN_SET, PT_PEN_TYPE, PT_INK_R, PT_INK_G, PT_INK_B, PT_FLOW, PT_NIB, PT_SPREAD,
+	PT_PEN_SET, PT_PEN_TYPE, PT_BLEND, PT_INK_R, PT_INK_G, PT_INK_B, PT_FLOW, PT_NIB, PT_SPREAD,
 	PT_PAPER_R, PT_PAPER_G, PT_PAPER_B, PT_GRAIN, PT_TOOTH, PT_FADE, PT_FADE_FIGURES, PT_PRINT,
 	PT_ZOOM, PT_GEARS
 };
@@ -151,6 +151,10 @@ void CogwheelPlugin::declareParameters()
 	SetParamInfof( PT_INK_G, "Ink Green", FF_TYPE_GREEN );
 	SetParamInfof( PT_INK_B, "Ink Blue", FF_TYPE_BLUE );
 	option( PT_PEN_TYPE, "Pen Type", kPenTypeCount, kPenTypeNames );
+	// How new ink meets old (#20). In a preset, because it is what kind of pen
+	// is in the hole rather than how the operator has framed the shot: a
+	// preset chosen with Lift still selected would draw nothing at all.
+	option( PT_BLEND, "Blend", kBlendCount, kBlendNames );
 	standard( PT_FLOW, "Flow" );
 	standard( PT_NIB, "Nib" );
 	standard( PT_SPREAD, "Pressure" );
@@ -708,7 +712,13 @@ char* CogwheelPlugin::GetParameterDisplay( unsigned int index )
 		std::snprintf( buffer, sizeof( buffer ), "%.2fx", resolved.render.scale );
 		break;
 	case PT_LAYERS:
-		if( resolved.crank.layers <= 1 )
+		//Under Keep Going the count is moot -- the pen never comes off the
+		//paper, so there is never a second layer -- and the display says so
+		//rather than promising figures that will not arrive.
+		if( resolved.crank.change == Change::KeepGoing )
+			std::snprintf( buffer, sizeof( buffer ), "%d - keeps going",
+			               resolved.crank.layers );//16 - keeps going = 16
+		else if( resolved.crank.layers <= 1 )
 			std::snprintf( buffer, sizeof( buffer ), "1 - never lifts" );
 		else
 			std::snprintf( buffer, sizeof( buffer ), "%d figures", resolved.crank.layers );
