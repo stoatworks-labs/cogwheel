@@ -1036,6 +1036,12 @@ public:
 			return;
 		}
 
+		if( decl->id == PT_EXPORT )
+		{
+			exportConfig( args );
+			return;
+		}
+
 		if( decl->id == PT_LOAD )
 		{
 			loadConfig( args );
@@ -1221,6 +1227,90 @@ private:
 			}
 		}
 		return -1;
+	}
+
+	/// #9, on this build. The same rows CogwheelPlugin::ExportConfig writes,
+	/// so a file from either build loads in the other: the NAME is the Decl's
+	/// label, which is the FFGL build's parameter name, and a colour goes out
+	/// as the three sliders FFGL declares -- "Ink Red", "Ink Green", "Ink
+	/// Blue" -- which is what `idForLabel` reads back.
+	void exportConfig( const OFX::InstanceChangedArgs& args )
+	{
+		readAll( args.time );
+
+		std::vector< config::Row > rows;
+		rows.reserve( PT_EXPORT + 1 );
+
+		int chosen = 0;
+		static_cast< OFX::ChoiceParam* >( handles[ PT_PRESET ] )->getValue( chosen );
+		const std::string presetName =
+			chosen >= 1 && chosen <= presets::kCount ? presets::kPresets[ chosen - 1 ].name : "Custom";
+
+		for( const Decl& d : kDecls )
+		{
+			// The file parameter is a path, not a setting, and a file that names
+			// the file it was loaded from is a loop waiting to happen. An Absent
+			// id is a colour's hidden component, written by its Colour below.
+			if( d.id == PT_LOAD || d.kind == Kind::Absent || d.label == nullptr )
+				continue;
+
+			if( d.kind == Kind::Colour )
+			{
+				static const char* const kSuffixes[ 3 ] = { " Red", " Green", " Blue" };
+				for( unsigned int c = 0; c < 3; ++c )
+				{
+					config::Row row;
+					row.id    = d.id + c;
+					row.name  = std::string( d.label ) + kSuffixes[ c ];
+					row.type  = "colour";
+					row.value = params[ d.id + c ];
+					rows.push_back( std::move( row ) );
+				}
+				continue;
+			}
+
+			config::Row row;
+			row.id    = d.id;
+			row.name  = d.label;
+			row.value = params[ d.id ];
+			switch( d.kind )
+			{
+			case Kind::Toggle: row.type = "boolean"; break;
+			case Kind::Button: row.type = "event"; break;
+			case Kind::Count:  row.type = "integer"; break;
+			case Kind::Option: row.type = "option"; break;
+			case Kind::File:   row.type = "text"; break;
+			case Kind::Slider:
+			default:           row.type = "standard"; break;
+			}
+
+			// The display is the human half of the row. The FFGL build's
+			// displays are computed against a live train and are not shared, so
+			// this build writes the part it can say without a second copy of
+			// them: the word a dropdown or a toggle is showing.
+			if( d.kind == Kind::Option )
+			{
+				const int index = static_cast< int >( std::lround( params[ d.id ] ) );
+				if( d.id == PT_PRESET )
+					row.display = presetName;
+				else if( d.options != nullptr && index >= 0 && index < d.optionCount )
+					row.display = d.options[ index ];
+			}
+			else if( d.kind == Kind::Toggle )
+				row.display = params[ d.id ] > 0.5f ? "on" : "off";
+
+			rows.push_back( std::move( row ) );
+		}
+
+		std::string path;
+		std::string error;
+		if( config::Write( rows, presetName, path, error ) )
+			// The path is the whole point of logging this. An OFX button has no
+			// display to say "saved" in, so without this line there is nothing
+			// anywhere that says WHERE -- which is the same as not having saved.
+			diag::info( "configuration exported to " + path );
+		else
+			diag::error( "configuration export failed: " + error );
 	}
 
 	/// #9's other half. Written THROUGH the host rather than into `params`,
