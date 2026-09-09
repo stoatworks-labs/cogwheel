@@ -40,8 +40,8 @@ does falls out of it.
 
 | Build | Download | Size |
 | --- | --- | --- |
-| Universal (Apple Silicon + Intel) · .dmg disk image | [`cogwheel-0.4.0-macos-universal.dmg`](https://github.com/stoatworks-labs/cogwheel/releases/download/v0.4.0/cogwheel-0.4.0-macos-universal.dmg) | 739 KB |
-| Universal (Apple Silicon + Intel) · .zip archive | [`cogwheel-macos-universal.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-macos-universal.zip) | 419 KB |
+| Universal (Apple Silicon + Intel) · .dmg disk image | [`cogwheel-0.4.0-macos-universal.dmg`](https://github.com/stoatworks-labs/cogwheel/releases/download/v0.4.0/cogwheel-0.4.0-macos-universal.dmg) | 515 KB |
+| Universal (Apple Silicon + Intel) · .zip archive | [`cogwheel-macos-universal.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-macos-universal.zip) | 455 KB |
 | Universal (Apple Silicon + Intel) · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`cogwheel-ofx-macos-universal.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-ofx-macos-universal.zip) | 444 KB |
 
 </details>
