@@ -33,16 +33,16 @@ does falls out of it.
 
 ## Download
 
-**[v0.4.0](https://github.com/stoatworks-labs/cogwheel/releases/tag/v0.4.0)** — prebuilt for macOS, Windows and Linux. Pick your platform:
+**[v0.5.0](https://github.com/stoatworks-labs/cogwheel/releases/tag/v0.5.0)** — prebuilt for macOS, Windows and Linux. Pick your platform:
 
 <details>
 <summary><b>macOS</b> — Universal (Apple Silicon + Intel)</summary>
 
 | Build | Download | Size |
 | --- | --- | --- |
-| Universal (Apple Silicon + Intel) · .dmg disk image | [`cogwheel-0.4.0-macos-universal.dmg`](https://github.com/stoatworks-labs/cogwheel/releases/download/v0.4.0/cogwheel-0.4.0-macos-universal.dmg) | 515 KB |
-| Universal (Apple Silicon + Intel) · .zip archive | [`cogwheel-macos-universal.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-macos-universal.zip) | 455 KB |
-| Universal (Apple Silicon + Intel) · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`cogwheel-ofx-macos-universal.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-ofx-macos-universal.zip) | 444 KB |
+| Universal (Apple Silicon + Intel) · .dmg disk image | [`cogwheel-0.5.0-macos-universal.dmg`](https://github.com/stoatworks-labs/cogwheel/releases/download/v0.5.0/cogwheel-0.5.0-macos-universal.dmg) | 746 KB |
+| Universal (Apple Silicon + Intel) · .zip archive | [`cogwheel-macos-universal.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-macos-universal.zip) | 422 KB |
+| Universal (Apple Silicon + Intel) · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`cogwheel-ofx-macos-universal.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-ofx-macos-universal.zip) | 451 KB |
 
 </details>
 
@@ -51,9 +51,9 @@ does falls out of it.
 
 | Build | Download | Size |
 | --- | --- | --- |
-| x64 · .exe installer | [`cogwheel-0.4.0-windows-x86_64-setup.exe`](https://github.com/stoatworks-labs/cogwheel/releases/download/v0.4.0/cogwheel-0.4.0-windows-x86_64-setup.exe) | 259 KB |
-| x64 · .zip archive | [`cogwheel-windows-x86_64.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-windows-x86_64.zip) | 286 KB |
-| x64 · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`cogwheel-ofx-windows-x86_64.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-ofx-windows-x86_64.zip) | 171 KB |
+| x64 · .exe installer | [`cogwheel-0.5.0-windows-x86_64-setup.exe`](https://github.com/stoatworks-labs/cogwheel/releases/download/v0.5.0/cogwheel-0.5.0-windows-x86_64-setup.exe) | 260 KB |
+| x64 · .zip archive | [`cogwheel-windows-x86_64.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-windows-x86_64.zip) | 288 KB |
+| x64 · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`cogwheel-ofx-windows-x86_64.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-ofx-windows-x86_64.zip) | 179 KB |
 
 </details>
 
