@@ -40,9 +40,9 @@ does falls out of it.
 
 | Build | Download | Size |
 | --- | --- | --- |
-| Universal (Apple Silicon + Intel) · .dmg disk image | [`cogwheel-0.5.0-macos-universal.dmg`](https://github.com/stoatworks-labs/cogwheel/releases/download/v0.5.0/cogwheel-0.5.0-macos-universal.dmg) | 746 KB |
-| Universal (Apple Silicon + Intel) · .zip archive | [`cogwheel-macos-universal.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-macos-universal.zip) | 422 KB |
-| Universal (Apple Silicon + Intel) · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`cogwheel-ofx-macos-universal.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-ofx-macos-universal.zip) | 451 KB |
+| Universal (Apple Silicon + Intel) · .dmg disk image | [`cogwheel-0.5.0-macos-universal.dmg`](https://github.com/stoatworks-labs/cogwheel/releases/download/v0.5.0/cogwheel-0.5.0-macos-universal.dmg) | 519 KB |
+| Universal (Apple Silicon + Intel) · .zip archive | [`cogwheel-macos-universal.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-macos-universal.zip) | 459 KB |
+| Universal (Apple Silicon + Intel) · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`cogwheel-ofx-macos-universal.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-ofx-macos-universal.zip) | 468 KB |
 
 </details>
 
