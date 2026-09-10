@@ -22,7 +22,7 @@ evaluates a curve.** Set the two tooth counts and the figure follows.
 > still unconfirmed is narrower: the OpenFX build has not been driven over a clip inside Resolve,
 > so its CPU renderer is proven to run and not yet proven to match the GPU one pixel for pixel.
 >
-> Released at **v0.5.0**.
+> Released at **v0.5.1**.
 >
 > This codebase was created with AI assistance, directed and reviewed by a human author.
 
@@ -83,10 +83,11 @@ file is worth reading as well as keeping:
 **Load XML**, new in v0.3.0, reads one back. It is a file picker: choose a file and every
 control the file names is set from it, the sheet is wiped for the new machine, and the Preset
 dropdown drops to **Custom**, because the file is now the truth. The row next to it says
-`loaded`, or `failed - see log`. The full path — and any row the plugin could not place — goes
-to the diagnostics log, because sixteen characters of parameter display is not room for one.
+`loaded`, `remembered`, or `failed - see log`. The full path — and any row the plugin could not
+place — goes to the diagnostics log, because sixteen characters of parameter display is not room
+for one.
 
-Three things worth knowing:
+Four things worth knowing:
 
 - **Rows are matched by name, never by number.** A file written by the source loads into the
   effect and back, and a file from an earlier release still loads even though the controls have
@@ -97,6 +98,12 @@ Three things worth knowing:
 - **A loaded file is held the way a preset is.** Resolume goes on pushing the slider values it
   believed before the load; the plugin recognises those as the host repeating itself rather
   than as you editing, and keeps the file's values until you actually move something.
+- **Reopening a composition does not re-read the file**, since v0.5.1. Resolume restores your
+  saved parameters and then hands the plugin back the path that was in the picker; re-reading
+  it there would put the file's values over the settings you saved, which is what #22 reported.
+  A path arriving before the first frame, on controls that have already moved off their
+  defaults, is the host restoring rather than you choosing, so the path is remembered and the
+  row says `remembered`. Your composition wins, and picking a file yourself is unaffected.
 
 The About block and the buttons are not settings and are not loaded, and a hand-edited value
 outside a control's range is clamped to the range rather than applied.
@@ -168,6 +175,13 @@ whatever balance the fade rate sets and stays there.
 
 A stack of one **Layer** also keeps the pen down, but it still *counts* each closure — which with
 Fade by Figure on settles the drawing so far and starts it fading. Keep Going does not.
+
+Selecting Keep Going holds **the figure that is on the paper**, since v0.5.1. Which wheel and
+which hole a figure uses is worked out from the seed, the layer number and On Closing itself, so
+switching to Keep Going part-way through a run used to lose two of those and fall back to what
+you originally threaded — a different figure, on the frame you asked it to stop changing (#24).
+It now latches the layer and the mode that produced what you are looking at. Switching back off
+hands the drawing to the live sequence again at the next closure.
 
 ---
 
