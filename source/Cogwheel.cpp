@@ -76,6 +76,13 @@ CogwheelPlugin::CogwheelPlugin( bool overInput ) :
 
 	declareParameters();
 
+	// After the defaults are in place and before anything can move them: what
+	// a control says here is what a control that nobody has touched says. It is
+	// the only way to tell a host restoring a saved composition from an
+	// operator picking a file -- see SetTextParameter.
+	for( unsigned int i = 0; i < PT_COUNT; ++i )
+		defaults[ i ] = params[ i ];
+
 	crank.Restart( 1u );
 
 	diag::init();
@@ -274,6 +281,12 @@ FFResult CogwheelPlugin::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 	glGetIntegerv( GL_VIEWPORT, viewport );
 	if( viewport[ 2 ] <= 0 || viewport[ 3 ] <= 0 )
 		return FF_FAIL;
+
+	//From here the host has finished instantiating, so a file path arriving at
+	//Load XML is the operator at the picker rather than a composition being
+	//restored. Set before anything can return early further down: a frame the
+	//renderer declines is still a frame the host asked for.
+	hasRendered = true;
 
 	GLuint clipTexture = 0;
 	float maxU         = 1.0f;
@@ -516,6 +529,22 @@ bool CogwheelPlugin::hostIsRestatingItself( unsigned int index, float value )
 	return true;
 }
 
+bool CogwheelPlugin::everythingIsDefault() const
+{
+	// Only the controls a file can set. The buttons, the dropdown and the path
+	// itself are not settings -- and PT_PRESET in particular is moved to Custom
+	// by the host's restore before the path arrives, which would answer this
+	// question on its own and always the same way.
+	//
+	// The tolerance is the one hostIsRestatingItself uses, and for the same
+	// reason: a host that round-trips a parameter through a saved file hands
+	// back a number near ours rather than ours.
+	for( unsigned int i = 0; i < PT_COUNT; ++i )
+		if( loadable( i ) && std::fabs( params[ i ] - defaults[ i ] ) > 1e-3f )
+			return false;
+	return true;
+}
+
 void CogwheelPlugin::applyPreset( int presetIndex )
 {
 	params[ PT_PRESET ] = static_cast< float >( presetIndex );
@@ -591,9 +620,37 @@ FFResult CogwheelPlugin::SetTextParameter( unsigned int index, const char* value
 			return FF_SUCCESS;
 		loadPath = path;
 		if( path.empty() )
+		{
 			loadNote = "none";
-		else
-			LoadConfig( path );
+			return FF_SUCCESS;
+		}
+
+		// #22: a host restoring a saved composition hands back the file path
+		// along with every other parameter, and re-reading the file there would
+		// overwrite the composition's own values with the file's -- then hold
+		// them, because LoadConfig arms loadedActive. The operator's settings
+		// came back for one frame and were gone, which is exactly what #22
+		// reports: ring and wheel returning to what the XML said, and Snap to
+		// Holes with them.
+		//
+		// The composition is the newer record and it wins. The path is still
+		// remembered, so the picker shows the file the look came from.
+		//
+		// Both halves of the test are needed. Once a frame has been rendered
+		// the host has long finished instantiating, so a path is the operator
+		// at the picker. Before that, a control that has moved off its default
+		// can only be the host restoring -- and a fresh instance where nothing
+		// has moved has nothing to lose, which is the case cgtest --config
+		// drives and the case of a file picked on a clip that has not run yet.
+		if( !hasRendered && !everythingIsDefault() )
+		{
+			loadNote = "remembered";
+			diag::info( "configuration not re-read on load: " + path
+			            + " -- the saved composition's own values are newer and stand" );
+			return FF_SUCCESS;
+		}
+
+		LoadConfig( path );
 		return FF_SUCCESS;//a bad file is a logged failure, not a refused parameter
 	}
 

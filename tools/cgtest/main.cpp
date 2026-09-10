@@ -1307,6 +1307,89 @@ int runKeepGoing( const Target& target )
 		}
 	}
 
+	//-----------------------------------------------------------------------
+	// #24. Selecting Keep Going holds the figure that is ON THE PAPER.
+	//
+	// The layer sequence is a function of the seed and the layer number, and
+	// WHICH of the wheel and the hole it moves is a function of `change`. So
+	// the moment `change` reads Keep Going both inputs are gone and the train
+	// falls back to layer 0 -- what the operator originally threaded. Twelve
+	// figures into a Next Wheel run that is a different wheel, and the drawing
+	// changes on the frame the operator asked it to stop changing.
+	//
+	// The second line is what makes the first mean anything: it is the train
+	// layer 0 would have given, and it has to be a DIFFERENT wheel, or holding
+	// the right one proves nothing.
+	//-----------------------------------------------------------------------
+	{
+		CrankParams params;
+		params.train.ringTeeth   = 96;
+		params.train.wheelTeeth  = 32;//closes every turn, so layers come quickly
+		params.train.mesh        = Mesh::Inside;
+		params.train.penFraction = 0.7;
+		params.turnsPerSecond    = 4.7;
+		params.layers            = 16;
+		params.stepsPerTurn      = 1440;
+		params.seed              = 1;
+		params.change            = Change::Wheel;
+
+		std::vector< Step > steps;
+		std::vector< Run > runs;
+
+		Crank crank;
+		crank.Restart( params.seed );
+		for( int f = 0; f < 600 && crank.Layer() < 3; ++f )
+			crank.Advance( params, 1.0 / 60.0, steps, runs );
+
+		const int layerAt     = crank.Layer();
+		const Train onPaper   = crank.CurrentTrain( params );
+
+		// What layer 0 says: a crank that has not moved, everything else equal.
+		Crank fresh;
+		fresh.Restart( params.seed );
+		const Train threaded = fresh.CurrentTrain( params );
+
+		// The operator reaches for the dropdown.
+		params.change = Change::KeepGoing;
+		crank.Advance( params, 1.0 / 60.0, steps, runs );
+		const Train held = crank.CurrentTrain( params );
+
+		// Holding must not have cost the machine its place: while Keep Going is
+		// selected the closure is not an event, so the layer stays put.
+		const bool stillThere = crank.Layer() == layerAt;
+
+		// And the operator changes their mind. The live sequence has to come
+		// back, which is only observable at the next closure: the layer moves
+		// on again and the wheel moves with it. Nothing here is chancy -- the
+		// sequence is a function of the seed and the layer alone, so this
+		// either differs or it never will.
+		params.change = Change::Wheel;
+		for( int f = 0; f < 600 && crank.Layer() == layerAt; ++f )
+			crank.Advance( params, 1.0 / 60.0, steps, runs );
+		const Train resumed = crank.CurrentTrain( params );
+
+		const bool moved  = onPaper.wheelTeeth != threaded.wheelTeeth;
+		const bool stayed = held.wheelTeeth == onPaper.wheelTeeth
+		                 && std::fabs( held.penFraction - onPaper.penFraction ) < 1e-12;
+		const bool back   = crank.Layer() > layerAt && resumed.wheelTeeth != held.wheelTeeth;
+
+		if( !( layerAt > 0 && moved && stayed && stillThere && back ) )
+			++failures;
+
+		std::printf( "\n  selecting Keep Going on layer %d\n", layerAt );
+		std::printf( "    the figure on the paper      wheel %3d   hole %.4f\n",
+		             onPaper.wheelTeeth, onPaper.penFraction );
+		std::printf( "    what layer 0 would give      wheel %3d   hole %.4f   %s\n",
+		             threaded.wheelTeeth, threaded.penFraction,
+		             moved ? "differs, so the check bites" : "SAME -- proves nothing" );
+		std::printf( "    after Keep Going             wheel %3d   hole %.4f   %s\n",
+		             held.wheelTeeth, held.penFraction, stayed ? "ok" : "FAIL" );
+		std::printf( "    and still on layer %d                                %s\n",
+		             layerAt, stillThere ? "ok" : "FAIL" );
+		std::printf( "    back on Next Wheel, layer %d  wheel %3d              %s\n",
+		             crank.Layer(), resumed.wheelTeeth, back ? "ok" : "FAIL" );
+	}
+
 	// The sheet.
 	{
 		auto total = [ & ]( Change change, bool fade ) {
@@ -1845,11 +1928,57 @@ int runConfig()
 			out << "<html>no</html>";
 		}
 		CogwheelPlugin plugin( false );
+		plugin.MarkRenderedForTest();//an operator at the picker, not a restore
 		plugin.SetFloatParameter( PT_PRESET, 3.0f );
 		plugin.SetTextParameter( PT_LOAD, bad.c_str() );
 		check( std::lround( plugin.GetFloatParameter( PT_PRESET ) ) == 3
 		           && std::string( plugin.GetParameterDisplay( PT_LOAD ) ) == "failed - see log",
 		       "a file that is not ours is refused and touches nothing" );
+	}
+
+	//-----------------------------------------------------------------------
+	// #22. Reopening a saved composition must give the operator back what they
+	// saved, not what the file they once loaded says.
+	//
+	// The order is the host's: Resolume restores every float, then hands back
+	// the file path. Before this was fixed the path re-read the file, wrote all
+	// 43 controls over the composition's own values and then HELD them, so ring
+	// and wheel went back to what the XML said and stayed there. The reporter's
+	// XML said 120 and 80, and 120 and 80 is what they got, every time.
+	//-----------------------------------------------------------------------
+	{
+		// A composition: the look from the file, then the operator's later
+		// edits on top of it -- the edits that have to survive.
+		CogwheelPlugin restored( false );
+		restored.SetFloatParameter( PT_PRESET, 0.0f );
+		for( const Set& s : look )
+			restored.SetFloatParameter( s.id, s.value );
+		restored.SetFloatParameter( PT_RING, 168.0f );
+		restored.SetFloatParameter( PT_WHEEL, 63.0f );
+		restored.SetFloatParameter( PT_SNAP_HOLES, 1.0f );
+		restored.SetTextParameter( PT_LOAD, path.c_str() );
+
+		check( std::fabs( restored.GetFloatParameter( PT_RING ) - 168.0f ) < 1e-3f
+		           && std::fabs( restored.GetFloatParameter( PT_WHEEL ) - 63.0f ) < 1e-3f,
+		       "#22 a restored composition keeps its own ring and wheel" );
+		check( restored.GetFloatParameter( PT_SNAP_HOLES ) > 0.5f,
+		       "#22 and its own Snap to Holes" );
+		check( std::string( restored.GetParameterDisplay( PT_LOAD ) ) == "remembered",
+		       "#22 the row says the path was remembered, not re-read" );
+
+		// And the host going on to restate itself does not undo it either:
+		// nothing is being held, so the composition simply stands.
+		for( int j = 0; j < count; ++j )
+			restored.SetFloatParameter( ids[ j ], restored.GetFloatParameter( ids[ j ] ) );
+		check( std::fabs( restored.GetFloatParameter( PT_RING ) - 168.0f ) < 1e-3f,
+		       "#22 and survives the host restating itself" );
+
+		// The picker still works afterwards. Once a frame has gone by, choosing
+		// the same file is the operator asking for it and it loads.
+		restored.MarkRenderedForTest();
+		restored.SetTextParameter( PT_LOAD, "" );
+		restored.SetTextParameter( PT_LOAD, path.c_str() );
+		check( matches( restored ), "#22 picking a file after that still loads it" );
 	}
 
 	std::printf( "\n  %s\n", failures == 0 ? "PASS" : "FAIL" );

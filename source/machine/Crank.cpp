@@ -44,6 +44,9 @@ void Crank::Restart( uint32_t seed )
 	wipe        = false;
 	seedUsed    = seed;
 	rng         = seed == 0 ? 1u : seed;
+	//A restart is a new drawing, so there is nothing left to hold.
+	holding     = false;
+	heldLayer   = 0;
 }
 
 Train Crank::CurrentTrain( const CrankParams& params ) const
@@ -62,16 +65,23 @@ Train Crank::CurrentTrain( const CrankParams& params ) const
 	//they made when the previous figure closed, and it is derived from the seed
 	//rather than remembered, so scrubbing the transport cannot desynchronise it
 	//from the picture.
-	//Keep Going never leaves layer 0, so the second test is belt and braces
-	//-- but it says what is meant, which is that the sequence does not apply.
-	if( layer <= 0 || params.change == Change::Nothing || params.change == Change::KeepGoing )
+	//
+	//Keep Going holds the figure that was on the paper when it was selected --
+	//#24 -- so while it is holding the sequence is read at the layer and in the
+	//mode that produced that figure, not at the live ones. Selected from a
+	//standing start it holds layer 0, which is what the operator threaded, and
+	//the tests below fall through exactly as they did.
+	const int effLayer      = holding ? heldLayer : layer;
+	const Change effChange  = holding ? heldChange : params.change;
+
+	if( effLayer <= 0 || effChange == Change::Nothing || effChange == Change::KeepGoing )
 		return t;
 
-	if( params.change == Change::Wheel || params.change == Change::Both )
+	if( effChange == Change::Wheel || effChange == Change::Both )
 	{
 		if( params.snapWheelToSet )
 		{
-			const int index = static_cast< int >( Draw( params.seed, layer, 0 ) % static_cast< uint32_t >( kSetWheelCount ) );
+			const int index = static_cast< int >( Draw( params.seed, effLayer, 0 ) % static_cast< uint32_t >( kSetWheelCount ) );
 			t.wheelTeeth    = kSetWheels[ index ];
 		}
 		else
@@ -79,7 +89,7 @@ Train Crank::CurrentTrain( const CrankParams& params ) const
 			//Off the set, keep it in the same neighbourhood as what was
 			//threaded: a jump from 52 teeth to 9 is not a wheel change, it is a
 			//different drawing.
-			const double u = Unit( Draw( params.seed, layer, 0 ) );
+			const double u = Unit( Draw( params.seed, effLayer, 0 ) );
 			const int span = std::max( 4, params.train.wheelTeeth / 2 );
 			t.wheelTeeth   = std::max( 3, params.train.wheelTeeth + static_cast< int >( std::lround( ( u * 2.0 - 1.0 ) * span ) ) );
 		}
@@ -87,18 +97,18 @@ Train Crank::CurrentTrain( const CrankParams& params ) const
 			t.wheelTeeth = std::min( t.wheelTeeth, t.ringTeeth - 1 );
 	}
 
-	if( params.change == Change::Hole || params.change == Change::Both )
+	if( effChange == Change::Hole || effChange == Change::Both )
 	{
 		if( params.snapPenToHoles )
 		{
-			const int index = static_cast< int >( Draw( params.seed, layer, 1 ) % static_cast< uint32_t >( kHoleCount ) );
+			const int index = static_cast< int >( Draw( params.seed, effLayer, 1 ) % static_cast< uint32_t >( kHoleCount ) );
 			const double t01 = static_cast< double >( index ) / static_cast< double >( kHoleCount - 1 );
 			t.penFraction    = kInnermostHole + ( kOutermostHole - kInnermostHole ) * t01;
 		}
 		else
 		{
 			t.penFraction = kInnermostHole
-			              + ( kOutermostHole - kInnermostHole ) * Unit( Draw( params.seed, layer, 1 ) );
+			              + ( kOutermostHole - kInnermostHole ) * Unit( Draw( params.seed, effLayer, 1 ) );
 		}
 	}
 
@@ -164,6 +174,27 @@ Geometry Crank::Advance( const CrankParams& params, double frameSeconds,
 
 	if( seedUsed != params.seed )
 		Restart( params.seed );
+
+	//#24. Latched here, before CurrentTrain is asked anything, because the
+	//frame the operator selects Keep Going in is the frame that must already
+	//be holding: deciding afterwards would let one frame of the layer-0 train
+	//through, which is the jump itself.
+	if( params.change == Change::KeepGoing )
+	{
+		if( !holding )
+		{
+			holding    = true;
+			heldLayer  = layer;
+			heldChange = lastChange;
+		}
+	}
+	else
+	{
+		//Coming off Keep Going hands the drawing back to the live sequence,
+		//which is where the operator's dropdown now says it should be.
+		holding    = false;
+		lastChange = params.change;
+	}
 
 	Geometry geometry = Solve( CurrentTrain( params ) );
 

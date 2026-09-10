@@ -117,6 +117,12 @@ public:
 	/// For the harness: the preset table's parameter ids, in the table's order.
 	static const unsigned int* PresetParamIDsForTest( int& count );
 
+	/// For the harness: say that the host has finished instantiating, which is
+	/// what a first frame means to Load XML. `--config` has to be able to drive
+	/// both worlds -- a composition being restored and an operator at the
+	/// picker -- and it runs without GL, so it cannot get there by rendering.
+	void MarkRenderedForTest() { hasRendered = true; }
+
 	/// For the harness: what the machine currently thinks it is drawing. No GL
 	/// involved, so the arithmetic can be checked without a context.
 	Geometry GeometryForTest() const;
@@ -126,6 +132,10 @@ private:
 	void applyPreset( int presetIndex );
 	void seedHostValues();
 	bool hostIsRestatingItself( unsigned int index, float value );
+
+	/// True while every control a file could set is still where the
+	/// constructor left it. See SetTextParameter.
+	bool everythingIsDefault() const;
 	float presetValue( int presetIndex, unsigned int id ) const;
 
 	/// Whether a control is something a file can set: everything an operator
@@ -172,6 +182,17 @@ private:
 	/// What the host last handed the Load XML parameter. A restatement of the
 	/// same path is not a second load -- see SetTextParameter.
 	std::string loadPath;
+
+	/// The constructor's values, so that a path arriving during instantiation
+	/// can be told apart from an operator choosing one. See SetTextParameter
+	/// and #22.
+	float defaults[ PT_COUNT ] = {};
+
+	/// False until the plugin has rendered once. A host restoring a saved
+	/// composition pushes every parameter -- the file path included -- before
+	/// the first frame, so up to that point a path is the host's and not the
+	/// operator's.
+	bool hasRendered = false;
 	/// What the Load XML row shows: "none" until a file is chosen, then the
 	/// outcome. The path is in the log, for the same reason the export's is.
 	std::string loadNote = "none";

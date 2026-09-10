@@ -199,6 +199,26 @@ private:
 	bool wipe          = false;
 	uint32_t rng       = 1;
 	uint32_t seedUsed  = 0;
+
+	/// What Keep Going is holding, and what it was doing when it was asked to.
+	///
+	/// The layer sequence is a function of the seed and the layer number, and
+	/// which of the wheel and the hole it moves is a function of `change` -- so
+	/// once `change` reads Keep Going, both inputs to the figure on screen have
+	/// gone. Layer 12 of a Next Wheel run is a different wheel from layer 0,
+	/// and reverting to layer 0 is #24: the operator asks the drawing to stay
+	/// as it is and it changes on the spot.
+	///
+	/// Latched as the layer NUMBER and the mode rather than as a Train, so that
+	/// what is held stays derived rather than remembered. Scrubbing the
+	/// transport still cannot desynchronise the sequence from the picture,
+	/// which is the property the comment in CurrentTrain is protecting.
+	bool holding       = false;
+	int heldLayer      = 0;
+	Change heldChange  = Change::Nothing;
+	/// The most recent mode that was not Keep Going, so that selecting Keep
+	/// Going knows which sequence produced what is on the paper.
+	Change lastChange  = Change::Hole;
 };
 
 } // namespace cogwheel
