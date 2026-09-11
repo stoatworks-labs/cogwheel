@@ -118,6 +118,12 @@ CONTEXT = {
     "Layers": dict(FAST_CLOSE),
     "On Closing": dict(FAST_CLOSE, **{"Layers": 6}),
     "Wipe Sheet": dict(FAST_CLOSE, **{"Layers": 2, "_frames": 400}),
+    # Needs a fade, and a figure that takes LONGER than it -- 96/52 at this
+    # crank is 2.6 s a figure against the one-second end of the Fade slider,
+    # so with the switch on the pen keeps going where it would have lifted
+    # for the next hole and the next pen. FAST_CLOSE's 32-tooth wheel closes
+    # in a fifth of a second and would never be late.
+    "Unless Faded": {"Fade": 1.0, "_frames": 400},
     # A stack of one is one pen, so the pen SET cannot show; and the sequence
     # of holes a seed picks only starts at the second layer.
     "Pens": dict(FAST_CLOSE, **{"Layers": 6}),

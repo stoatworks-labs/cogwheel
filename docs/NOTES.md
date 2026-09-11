@@ -540,3 +540,61 @@ three floats a pixel to four for the same reason.
 hole: a preset chosen with Lift still selected would draw nothing, which reads
 as a broken preset rather than as an eraser left in the hole. The static_asserts
 and `check_presets.py` grew a column; every factory row is Multiply.
+
+## 2026-09-11 — v0.6.0: Unless Faded (#25)
+
+The reporter's fourth issue in a week was a thought experiment rather than a
+request: *what would happen if a pattern didn't close if the start had faded —
+would it be the same as Keep Going?* With the follow-up that different wheels
+would come out differently under one fade setting, some keeping going and some
+not. That second sentence is the design: closing becomes a property of the
+wheel and the fade together, decided per figure, rather than a switch.
+
+The answer is yes, for that figure. **`Unless Faded`** is a boolean under On
+Closing — a clause of it, "Next Hole, unless faded" — and when it is on a
+figure that has been on the paper longer than the Fade time when it comes home
+does not close. The pen stays down, theta is wound back, nothing is counted,
+folded or wiped: the Keep Going path, taken per closure. A figure quicker than
+the fade closes as On Closing says.
+
+Three decisions worth recording:
+
+- **The machine is told a time, not a fade.** `CrankParams::closeWithinSeconds`
+  is the whole interface; `Controls.cpp` sets it to the fade time or zero.
+  `machine/` still has no idea what a fade is, the OFX build links it
+  unchanged, and the check runs with no GL.
+- **The threshold is the fade time itself.** The sheet multiplies density by
+  `exp( -dt / fade )` a frame, so the start of a figure is `exp( -T / fade )` of
+  itself after `T` seconds — "older than the fade" is "ghosted to under a
+  third". A stricter threshold (three fades, say) would lift the pen off a
+  comet whose tail is at five percent, which looks wrong; a looser one has no
+  name. And it is the one number the operator already set, so the control is
+  live: turn Fade up past a lap and the held figure closes the next time round.
+- **The rule holds under Fade by Figure**, where the figure in progress does
+  not literally fade. Reading the switch literally there would make it a no-op,
+  and a control that does nothing in one of two modes reads as broken. The
+  uniform rule — a figure slower than the fade keeps going — means one thing in
+  both, and the guide says so.
+
+The lap clock is apportioned per run by angle, the way the ink is, so a closure
+that lands mid-frame is judged on the time it actually took and the verdict is
+the same at 24 and 120 fps; whatever of a frame the runs do not account for (a
+crank at zero, a frame cut by the step budget) is banked afterwards so the
+clock keeps wall time. The clock restarts at every homecoming, held or not, so
+a held figure is asked the same question every lap and closes on the first lap
+after the fade or the speed changes.
+
+`cgtest --unlessfaded` is four tables: the crank under a limit shorter than the
+lap behaves exactly as `--keepgoing` demands of Keep Going (no closures, no
+layer, the run still cut, the pen still where it was) and under a longer limit
+produces the same steps as with the switch off; 96/32 and 96/52 at one speed
+and one limit, and only the 52 held — with the no-limit line showing it would
+have closed three times; raising the limit releasing the 52 inside one lap; and
+the readout, which `--names` cannot reach because it needs Fade and the switch
+on together. The sweep exercises it on 96/52 at the 0.90 crank against the
+one-second end of Fade, because FAST_CLOSE's 32-tooth wheel is never late.
+
+Not in the preset table, deliberately: it is a performance switch, not part of
+a look, and a preset that flipped it under the operator would be the surprise
+On Closing already is. Every composition saved before 0.6.0 opens with it off.
+

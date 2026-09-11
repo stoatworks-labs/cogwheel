@@ -125,6 +125,31 @@ struct CrankParams
 	Change change     = Change::Hole;
 	bool wipeOnRestack = true;        ///< Fresh sheet when the stack completes.
 
+	/// A figure that took longer than this to draw does not close: the pen
+	/// stays down and carries on round, exactly as under Keep Going, and the
+	/// question is asked again the next time it comes home. Zero -- the
+	/// default -- means every figure closes.
+	///
+	/// #25 asked what would happen if a pattern did not close when its start
+	/// had faded, and whether that would be the same as Keep Going. It is,
+	/// for that figure: the closure is not an event. For a figure quick enough
+	/// that its start is still on the paper it is whatever `change` says. So
+	/// with one fade setting some wheels keep going and some stack, which is
+	/// what the reporter expected -- 96/32 comes home in a turn, 96/31 in
+	/// thirty-one.
+	///
+	/// The machine is told a TIME and not a fade. The sheet multiplies its
+	/// density by exp( -dt / fade ) every frame, so the start of a figure is
+	/// exactly exp( -T / fade ) of itself when the pen comes home after T
+	/// seconds; `Controls.cpp` passes the fade time here, and "faded" means
+	/// older than the fade -- ghosted to under a third. That is the one number
+	/// the operator already set, and it holds under Fade by Figure too, where
+	/// the figure in progress does not literally fade: the rule is that a
+	/// figure slower than the fade keeps going, in both modes, so the switch
+	/// does the same thing whichever fade is on. Nothing in `machine/` knows
+	/// what a fade is.
+	double closeWithinSeconds = 0.0;
+
 	uint32_t seed = 1;
 
 	int stepsPerTurn = 1440;          ///< From Detail.
@@ -171,6 +196,11 @@ public:
 	/// How far through the current figure the pen is, 0..1.
 	double FigurePhase() const { return figurePhase; }
 
+	/// Seconds the current figure has been on the paper: since the pen went
+	/// down at its start, or since it last came home and carried on. What
+	/// `closeWithinSeconds` is compared against, and the harness reads it.
+	double FigureSeconds() const { return figureSeconds; }
+
 	/// The wheel centre's angle about the ring, in radians, as it stands after
 	/// the last Advance. The gear overlay is drawn from THIS and from the
 	/// Geometry that Advance returned -- never from a second computation off
@@ -194,6 +224,10 @@ private:
 	double theta       = 0.0; ///< Radians of the wheel centre about the ring.
 	double slipTeeth   = 0.0;
 	double figurePhase = 0.0;
+	/// Apportioned per run by angle, the way the ink is, so a closure that
+	/// lands mid-frame is judged on the time it actually took and the
+	/// verdict is the same at any frame rate.
+	double figureSeconds = 0.0;
 	int layer          = 0;
 	int figuresClosed  = 0;
 	bool wipe          = false;

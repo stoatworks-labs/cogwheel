@@ -22,7 +22,7 @@ evaluates a curve.** Set the two tooth counts and the figure follows.
 > still unconfirmed is narrower: the OpenFX build has not been driven over a clip inside Resolve,
 > so its CPU renderer is proven to run and not yet proven to match the GPU one pixel for pixel.
 >
-> Released at **v0.5.1**.
+> Released at **v0.6.0**.
 >
 > This codebase was created with AI assistance, directed and reviewed by a human author.
 
@@ -182,6 +182,31 @@ switching to Keep Going part-way through a run used to lose two of those and fal
 you originally threaded — a different figure, on the frame you asked it to stop changing (#24).
 It now latches the layer and the mode that produced what you are looking at. Switching back off
 hands the drawing to the live sequence again at the next closure.
+
+There is a fifth, new in v0.6.0, and it is not a way out so much as a way of letting the drawing
+choose: **Unless Faded**, the switch under On Closing. With it on, a figure closes only if it was
+drawn inside the **Fade** time. One that took longer has faded from behind the pen by the time
+the pen comes home — there is no whole figure on the paper to close — so it keeps going instead,
+exactly as if On Closing said Keep Going, and is asked again the next time round. One that was
+quicker closes as On Closing says. So with a single fade setting the quick wheels stack and the
+slow ones keep going: at the default crank a 96/32 comes home in two seconds and stacks under a
+ten-second fade, while a 96/31 takes a minute and never does. Turn Fade up past a figure's lap
+and it closes the next time it comes home; turn it down and the stack stops growing. The readout
+next to the switch says the number it is working to — `longer than 12s` — so you can see which
+figures will close without doing the sum.
+
+It needs **Fade** above zero: with no fade nothing has faded and every figure closes, and the
+readout says `no fade: closes`. The rule is the same under **Fade by Figure**, where the figure
+being drawn does not literally fade — a figure slower than the fade keeps going in both modes,
+so the switch means one thing whichever fade you are using. It came out of #25, which asked
+exactly this question as a thought experiment.
+
+![Unless Faded, off and on](unless-faded.png)
+
+The same wheel, the same two-second fade, the same frame. On the left the figure took longer
+than the fade to draw, closed anyway, and the pen has lifted twice — red, then blue, then green,
+each fading behind the next. On the right it kept going: the same red pen, never lifted, the
+figure precessing under Creep with the fade following it round.
 
 ---
 
@@ -365,6 +390,7 @@ not allocate, both look like "it does nothing" from outside and both say so ther
 
 **A control does nothing.** Some are conditional: **Skip Size** needs **Skip Chance** above zero,
 **On Closing** and **Pens** need **Layers** above one, **Layers** and **Pens** do nothing under
-*Keep Going* because the pen never comes off the paper, the **Ink** sliders only apply when
-**Pens** is set to *Ink Colour*, and **Ink from Clip** / **Paper from Clip** exist only on the
-effect.
+*Keep Going* because the pen never comes off the paper, **Unless Faded** needs **Fade** above
+zero and a figure that takes longer than it to draw (its readout says which), the **Ink** sliders
+only apply when **Pens** is set to *Ink Colour*, and **Ink from Clip** / **Paper from Clip** exist
+only on the effect.

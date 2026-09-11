@@ -35,6 +35,7 @@ Disable with `-DBUILD_OFX=OFF`.
 - The closing frame's last stroke settles with its own figure: `./build/cgtest --settle`
 - An opaque pen hides and a lifting pen takes ink off, exactly: `./build/cgtest --blend`
 - Under Keep Going a closure is not an event: `./build/cgtest --keepgoing`
+- Unless Faded lets the fade decide whether a figure closes: `./build/cgtest --unlessfaded`
 - The defaults keep drawing, a true mesh stops: `./build/cgtest --liveness`
 - Every preset draws something: `./build/cgtest --presets`
 - The defaults ARE preset 1: `./build/cgtest --defaults`
@@ -75,6 +76,10 @@ Disable with `-DBUILD_OFX=OFF`.
 - **`On Closing → Keep Going` is not `Layers = 1`.** A stack of one keeps the
   pen down but still counts the closure, and Fade by Figure settles on it;
   Keep Going never sets `Run::closes` at all.
+- **`Unless Faded` is Keep Going decided per figure, by time.** The machine is
+  handed `CrankParams::closeWithinSeconds` -- the Fade time, or zero -- and a
+  figure that has been on the paper longer than it when it comes home is the
+  same non-event. `machine/` never learns what a fade is. `--unlessfaded`.
 - **Presets are an OVERRIDE, not a write** — Resolume does not consume value
   events. `seedHostValues()` must run before `applyPreset` can.
 - **The OFX build replays from frame zero**, because paper does not forget.

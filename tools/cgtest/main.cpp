@@ -18,6 +18,7 @@
         --settle    the frame a figure closes in puts its last stroke with that figure
         --blend     an opaque pen hides, a lifting pen takes ink off, and both compose exactly
         --keepgoing under Keep Going a closure is not an event
+        --unlessfaded the fade decides whether a figure closes
         --presets   every preset draws something with structure in it
         --defaults  the constructor's defaults ARE preset 1
         --hosts     presets survive all three host behaviours
@@ -1445,6 +1446,263 @@ int runKeepGoing( const Target& target )
 }
 
 //---------------------------------------------------------------------------
+// --unlessfaded
+//---------------------------------------------------------------------------
+//
+// #25: "what would happen if a pattern didn't close if the start had faded --
+// would it be the same as Keep Going?" It is, for that figure, and this is the
+// check that it is. The crank is given a time limit and nothing else: a
+// figure that has been on the paper longer than the limit when it comes home
+// carries on instead of closing.
+//
+// The first table asks the machine what --keepgoing asks of Keep Going. With
+// the limit shorter than the figure every closure is a non-event: nothing
+// counted, no layer, the run still cut at the closure and the pen still where
+// it was. With the limit longer than the figure the switch is invisible: the
+// same closures, the same layers, the same steps as with it off.
+//
+// The second is the reporter's other sentence -- "with the same fade setting
+// some would keep going and some wouldn't" -- two wheels at one crank speed
+// and one limit, and only the slow one held. The control line, with no limit,
+// is what makes it bite: the slow wheel closes three times in ten seconds
+// when nothing is holding it.
+//
+// The third is what makes it a performance control rather than a setting:
+// raising the limit past the figure's time releases a held figure, and it
+// closes the next time it comes home -- within one lap, and not before.
+//
+// Then the readout, which --names cannot reach because it needs two controls
+// on at once: the number the switch turns on, in sixteen characters.
+int runUnlessFaded()
+{
+	std::printf( "unlessfaded -- the fade decides whether a figure closes\n\n" );
+
+	int failures = 0;
+
+	static const float palette[ 12 ] = { 0.7f, 0.1f, 0.1f, 0.1f, 0.1f, 0.7f, 0.1f, 0.6f, 0.1f, 0.1f, 0.1f, 0.1f };
+
+	auto machine = []( int wheelTeeth, double closeWithinSeconds ) {
+		CrankParams params;
+		params.train.ringTeeth   = 96;
+		params.train.wheelTeeth  = wheelTeeth;
+		params.train.mesh        = Mesh::Inside;
+		params.train.penFraction = 0.7;
+		//4.7 and not 5, for --keepgoing's reason: the closure has to land
+		//mid-frame for the cut at it to be exercised at all.
+		params.turnsPerSecond    = 4.7;
+		params.layers            = 4;
+		params.change            = Change::Hole;
+		params.creepTeethPerTurn = 0.5;//precessing while it is judged
+		params.stepsPerTurn      = 1440;
+		params.palette           = palette;
+		params.paletteCount      = 4;
+		params.closeWithinSeconds = closeWithinSeconds;
+		return params;
+	};
+
+	struct Tally
+	{
+		int closed = 0, maxLayer = 0, runs = 0;
+		double worstGap = 0.0;
+		size_t stepsSeen = 0;
+		double stepSum = 0.0;//a fingerprint of the path, for "the same steps"
+	};
+
+	auto drive = []( Crank& crank, const CrankParams& params, int frames ) {
+		std::vector< Step > steps;
+		std::vector< Run > runs;
+		Tally t;
+		for( int f = 0; f < frames; ++f )
+		{
+			crank.Advance( params, 1.0 / 60.0, steps, runs );
+			t.closed += crank.FiguresClosed();
+			t.maxLayer = std::max( t.maxLayer, crank.Layer() );
+			t.runs += static_cast< int >( runs.size() );
+			t.stepsSeen += steps.size();
+			for( const Step& s : steps )
+				t.stepSum += static_cast< double >( s.x ) * 1.0e-3 + static_cast< double >( s.y );
+			for( size_t r = 1; r < runs.size(); ++r )
+			{
+				const Step& a = steps[ static_cast< size_t >( runs[ r - 1 ].first + runs[ r - 1 ].count - 1 ) ];
+				const Step& b = steps[ static_cast< size_t >( runs[ r ].first ) ];
+				t.worstGap    = std::max( t.worstGap, static_cast< double >( std::hypot( b.x - a.x, b.y - a.y ) ) );
+			}
+		}
+		return t;
+	};
+
+	auto lapSeconds = [ & ]( int wheelTeeth ) {
+		const CrankParams p = machine( wheelTeeth, 0.0 );
+		Crank crank;
+		crank.Restart( 1u );
+		return static_cast< double >( Solve( crank.CurrentTrain( p ) ).turnsToClose ) / p.turnsPerSecond;
+	};
+
+	//-----------------------------------------------------------------------
+	// One wheel, three limits. 96/32 comes home every turn: 0.21 s at 4.7.
+	//-----------------------------------------------------------------------
+	{
+		std::printf( "  96/32, one lap = %.3f s, ten seconds at 4.7 turns a second\n\n", lapSeconds( 32 ) );
+		std::printf( "  limit         closures   layers   runs   worst gap at a run boundary\n" );
+
+		Tally off;
+		const double limits[ 3 ] = { 0.0, 0.1, 1.0 };
+		for( int i = 0; i < 3; ++i )
+		{
+			Crank crank;
+			crank.Restart( 1u );
+			const Tally t = drive( crank, machine( 32, limits[ i ] ), 600 );
+			if( i == 0 )
+				off = t;
+
+			bool ok;
+			const char* what;
+			if( i == 0 )
+			{
+				//The baseline: forty-seven laps, a closure at every one.
+				ok   = t.closed >= 40 && t.maxLayer == 3;
+				what = "off";
+			}
+			else if( i == 1 )
+			{
+				//Every lap is longer than the limit, so no lap closes: what
+				//--keepgoing asks of Keep Going, to the letter.
+				ok   = t.closed == 0 && t.maxLayer == 0 && t.runs >= 640 && t.worstGap < 1.0e-6;
+				what = "0.1 s, shorter than a lap";
+			}
+			else
+			{
+				//No lap is longer than the limit, so the switch is invisible:
+				//not just as many closures, the same path.
+				ok   = t.closed == off.closed && t.maxLayer == off.maxLayer && t.runs == off.runs
+				    && t.stepsSeen == off.stepsSeen && std::fabs( t.stepSum - off.stepSum ) < 1.0e-9;
+				what = "1 s, longer than a lap";
+			}
+			if( !ok )
+				++failures;
+
+			std::printf( "  %-26s %6d %8d %6d   %10.2e  %s\n", what, t.closed, t.maxLayer + 1, t.runs, t.worstGap,
+			             ok ? "ok" : "FAIL" );
+		}
+	}
+
+	//-----------------------------------------------------------------------
+	// Two wheels, one limit. 96/52 takes thirteen turns: 2.77 s at 4.7.
+	//-----------------------------------------------------------------------
+	{
+		std::printf( "\n  one second's limit, ten seconds, two wheels\n\n" );
+		std::printf( "  wheel   lap      closures with no limit   with the limit\n" );
+
+		int held[ 2 ]  = { 0, 0 };
+		int free_[ 2 ] = { 0, 0 };
+		const int wheels[ 2 ] = { 32, 52 };
+		for( int w = 0; w < 2; ++w )
+		{
+			Crank a;
+			a.Restart( 1u );
+			free_[ w ] = drive( a, machine( wheels[ w ], 0.0 ), 600 ).closed;
+			Crank b;
+			b.Restart( 1u );
+			held[ w ] = drive( b, machine( wheels[ w ], 1.0 ), 600 ).closed;
+		}
+
+		//The quick wheel is untouched; the slow one, which would have closed
+		//three times, does not close at all. Both halves have to hold or the
+		//table proves nothing: a slow wheel that never closed anyway is not
+		//being held by anything.
+		const bool quickOk = held[ 0 ] == free_[ 0 ] && free_[ 0 ] >= 40;
+		const bool slowOk  = free_[ 1 ] >= 3 && held[ 1 ] == 0;
+		if( !quickOk || !slowOk )
+			++failures;
+
+		for( int w = 0; w < 2; ++w )
+			std::printf( "  96/%-3d  %5.2f s  %20d   %14d  %s\n", wheels[ w ], lapSeconds( wheels[ w ] ),
+			             free_[ w ], held[ w ],
+			             w == 0 ? ( quickOk ? "ok -- quicker than the fade, so it stacks" : "FAIL" )
+			                    : ( slowOk ? "ok -- slower than the fade, so it keeps going" : "FAIL" ) );
+	}
+
+	//-----------------------------------------------------------------------
+	// Raising the limit releases a held figure at its next homecoming.
+	//-----------------------------------------------------------------------
+	{
+		CrankParams params = machine( 52, 1.0 );
+		Crank crank;
+		crank.Restart( 1u );
+		const Tally before = drive( crank, params, 600 );
+
+		//The operator turns the fade up past the lap. The next homecoming is
+		//at most one lap away, because the lap clock restarted at the last
+		//one -- so the figure closes inside 2.77 s, and not before it is home.
+		params.closeWithinSeconds = 10.0;
+		const int lapFrames = static_cast< int >( std::ceil( lapSeconds( 52 ) * 60.0 ) );
+		int framesToClose   = 0;
+		std::vector< Step > steps;
+		std::vector< Run > runs;
+		while( framesToClose < lapFrames + 60 )
+		{
+			crank.Advance( params, 1.0 / 60.0, steps, runs );
+			++framesToClose;
+			if( crank.FiguresClosed() > 0 )
+				break;
+		}
+
+		const bool heldOk     = before.closed == 0 && before.maxLayer == 0;
+		const bool releasedOk = crank.FiguresClosed() > 0 && crank.Layer() == 1 && framesToClose <= lapFrames + 1;
+		if( !heldOk || !releasedOk )
+			++failures;
+
+		std::printf( "\n  96/52 under a one-second limit for ten seconds: %d closures        %s\n",
+		             before.closed, heldOk ? "ok" : "FAIL" );
+		std::printf( "  limit raised to ten seconds: closed after %d frames, one lap is %d  %s\n",
+		             framesToClose, lapFrames, releasedOk ? "ok" : "FAIL" );
+	}
+
+	//-----------------------------------------------------------------------
+	// The readout. Sixteen characters is the host's buffer -- see --names,
+	// which sweeps one control at a time from the defaults and so never has
+	// Fade and this switch on together.
+	//-----------------------------------------------------------------------
+	{
+		std::printf( "\n  readout                        Fade   Unless Faded   display\n" );
+
+		struct Case
+		{
+			float fade, on;
+			const char* expect;
+		};
+		//The Fade slider is exponential from two minutes down to one second,
+		//so 0 is off, 1 is the one-second end and 0.6 is about seven seconds.
+		//Anything at or under 0.001 is off too -- see Controls.cpp -- so the
+		//long end is read a hair above it.
+		const Case cases[] = {
+			{ 0.0f, 0.0f, "off" },
+			{ 0.6f, 0.0f, "off" },
+			{ 0.0f, 1.0f, "no fade: closes" },
+			{ 1.0f, 1.0f, "longer than 1.0s" },
+			{ 0.6f, 1.0f, "longer than 6.8s" },
+			{ 0.002f, 1.0f, "longer than 119s" },
+		};
+		CogwheelPlugin plugin( false );
+		for( const Case& c : cases )
+		{
+			plugin.SetFloatParameter( PT_FADE, c.fade );
+			plugin.SetFloatParameter( PT_UNLESS_FADED, c.on );
+			const char* display = plugin.GetParameterDisplay( PT_UNLESS_FADED );
+			const std::string got = display != nullptr ? display : "(null)";
+			const bool ok = got == c.expect && got.size() <= 16;
+			if( !ok )
+				++failures;
+			std::printf( "  %-30s %5.3f   %-12s   %-18s %s\n", "", c.fade, c.on > 0.5f ? "on" : "off", got.c_str(),
+			             ok ? "ok" : "FAIL" );
+		}
+	}
+
+	std::printf( "\n  %s\n", failures == 0 ? "PASS" : "FAIL" );
+	return failures == 0 ? 0 : 1;
+}
+
+//---------------------------------------------------------------------------
 // --liveness
 //---------------------------------------------------------------------------
 //
@@ -2668,6 +2926,7 @@ void usage()
 		"  --settle    the frame a figure closes in puts its last stroke with that figure\n"
 		"  --blend     an opaque pen hides, a lifting pen takes ink off, and both compose exactly\n"
 		"  --keepgoing under Keep Going a closure is not an event\n"
+		"  --unlessfaded the fade decides whether a figure closes\n"
 		"  --presets   every preset draws something with structure in it\n"
 		"  --defaults  the constructor's defaults ARE preset 1\n"
 		"  --hosts     presets survive all three host behaviours\n"
@@ -2761,15 +3020,18 @@ int main( int argc, char** argv )
 		}
 	}
 
-	// --closure, --defaults and --hosts need no GL at all, so they are answered
+	// --closure, --defaults, --hosts and --unlessfaded need no GL at all, so they are answered
 	// before a context is created: on a machine with no GPU available they are
 	// still the tests that can run.
-	if( checks.size() == 1 && ( checks[ 0 ] == "closure" || checks[ 0 ] == "defaults" || checks[ 0 ] == "hosts" ) )
+	if( checks.size() == 1 && ( checks[ 0 ] == "closure" || checks[ 0 ] == "defaults" || checks[ 0 ] == "hosts"
+	                            || checks[ 0 ] == "unlessfaded" ) )
 	{
 		if( checks[ 0 ] == "closure" )
 			return runClosure();
 		if( checks[ 0 ] == "defaults" )
 			return runDefaults();
+		if( checks[ 0 ] == "unlessfaded" )
+			return runUnlessFaded();
 		return runHosts();
 	}
 
@@ -2825,6 +3087,7 @@ int main( int argc, char** argv )
 		run( "settle", runSettle );
 		run( "blend", runBlend );
 		run( "keepgoing", runKeepGoing );
+		if( wanted( "unlessfaded" ) ) { ++ran; std::printf( "\n" ); failed += runUnlessFaded(); }
 		run( "presets", runPresets );
 		if( wanted( "defaults" ) ) { ++ran; std::printf( "\n" ); failed += runDefaults(); }
 		if( wanted( "hosts" ) )    { ++ran; std::printf( "\n" ); failed += runHosts(); }

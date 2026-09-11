@@ -228,6 +228,14 @@ Resolved Resolve( const float* p, double bpm, bool overInput )
 	//default. See Sheet.h for why this is not simply a gate on the pen.
 	r.render.fadeByFigure = boolean( p[ PT_FADE_FIGURES ] );
 
+	//What the fade means to the crank (#25). Resolved here and not with the
+	//other Layers controls because it IS the fade time: a figure that has
+	//been on the paper longer than the fade when it comes home does not
+	//close. With no fade nothing has faded and every figure closes, which is
+	//why zero is the machine's "off" as well as the sheet's.
+	r.crank.closeWithinSeconds = boolean( p[ PT_UNLESS_FADED ] )
+	                               ? static_cast< double >( r.render.fadeSeconds ) : 0.0;
+
 	r.render.negative = Option( p[ PT_PRINT ], kPrintCount ) == static_cast< int >( Print::Negative );
 
 	// -- The overlay ---------------------------------------------------------

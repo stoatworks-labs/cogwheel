@@ -115,6 +115,21 @@ back by one figure so it stays bounded, which is exact because a closed figure
 is periodic in theta for any fixed slip. `cgtest --keepgoing` checks the pen
 does not move at the wind-back and that Fade by Figure has nothing to take.
 
+**`Unless Faded` (#25) is the same non-event, decided per figure by the
+fade.** The reporter asked what would happen if a pattern did not close when
+its start had faded, and whether that was Keep Going: it is, for that figure.
+The crank is handed a time and nothing else -- `closeWithinSeconds`, which
+`Controls.cpp` sets to the Fade time -- and a figure that has been on the
+paper longer than it when it comes home carries on exactly as Keep Going
+would; a quicker one closes as `On Closing` says. The threshold is the fade
+time itself because the sheet multiplies density by `exp( -dt / fade )`, so
+"older than the fade" is "ghosted to under a third", and because it is the one
+number the operator already set: turn Fade up past a figure's lap and it
+closes the next time round. The rule holds under Fade by Figure too, where the
+figure in progress does not literally fade, so the switch means one thing
+whichever fade is on. `machine/` never learns what a fade is, which is what
+keeps the OFX build and the harness honest. `cgtest --unlessfaded`.
+
 ⚠️ **Slip carries across a closure only when the pen never lifts.** A stack of
 one figure is somebody who has not stopped turning: the wheel stays in the ring,
 `theta` carries on, and the accumulated creep goes with it. A stack of more than

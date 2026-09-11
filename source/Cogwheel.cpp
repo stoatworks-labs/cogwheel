@@ -65,6 +65,11 @@ CogwheelPlugin::CogwheelPlugin( bool overInput ) :
 	params[ PT_CENTRE_Y ]        = 0.5f;
 	params[ PT_INK_FROM_CLIP ]   = 0.0f;
 	params[ PT_PAPER_FROM_CLIP ] = 0.0f;
+	//Off: every figure closes, which is what every composition saved before
+	//0.6.0 expects. A performance switch, not part of a look, so a preset
+	//leaves it where the operator put it -- like Clear Paper, and unlike On
+	//Closing.
+	params[ PT_UNLESS_FADED ]    = 0.0f;
 	//A slate grey rather than a pale one: the overlay has to read against
 	//cartridge paper AND against a negative print, and a light grey vanishes
 	//into the first.
@@ -142,6 +147,7 @@ void CogwheelPlugin::declareParameters()
 	SetParamInfo( PT_LAYERS, "Layers", FF_TYPE_INTEGER, params[ PT_LAYERS ] );
 	SetParamRange( PT_LAYERS, 1.0f, static_cast< float >( kMaxLayers ) );
 	option( PT_CHANGE, "On Closing", kChangeCount, kChangeNames );
+	SetParamInfo( PT_UNLESS_FADED, "Unless Faded", FF_TYPE_BOOLEAN, params[ PT_UNLESS_FADED ] > 0.5f );
 	SetParamInfo( PT_WIPE, "Wipe Sheet", FF_TYPE_BOOLEAN, params[ PT_WIPE ] > 0.5f );
 
 	// -- The pen -------------------------------------------------------------
@@ -767,6 +773,19 @@ char* CogwheelPlugin::GetParameterDisplay( unsigned int index )
 		break;
 	case PT_ZOOM:
 		std::snprintf( buffer, sizeof( buffer ), "%.2fx", resolved.render.scale );
+		break;
+	case PT_UNLESS_FADED:
+		//The number the switch turns on, so the operator can see which figures
+		//will close without doing the sum: one that takes longer than this to
+		//draw keeps going. Off falls through to a plain "off".
+		if( resolved.crank.closeWithinSeconds <= 0.0 && params[ PT_UNLESS_FADED ] > 0.5f )
+			std::snprintf( buffer, sizeof( buffer ), "no fade: closes" );//15
+		else if( resolved.crank.closeWithinSeconds > 0.0 )
+			std::snprintf( buffer, sizeof( buffer ), "longer than %.*fs",
+			               resolved.crank.closeWithinSeconds < 9.95 ? 1 : 0,
+			               resolved.crank.closeWithinSeconds );//longer than 120s = 16
+		else
+			return PlainDisplay( index );
 		break;
 	case PT_LAYERS:
 		//Under Keep Going the count is moot -- the pen never comes off the

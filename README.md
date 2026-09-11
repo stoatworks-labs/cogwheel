@@ -116,7 +116,9 @@ another hole, change the pen and draw the next on top — which is how the
 multicoloured Spirograph drawing everybody remembers is actually made. That is
 `Layers`. Or you never lift it at all: `On Closing → Keep Going` makes the
 closure no event whatsoever, and the figure goes on precessing for as long as
-the crank turns.
+the crank turns. Or you let the fade decide: `Unless Faded` closes a figure
+only if it was drawn inside the `Fade` time, so with one fade setting the quick
+wheels stack and the slow ones keep going.
 
 If you are ever tempted to draw a spirograph, stop: either it already falls out
 of the machine, or the machine is wrong somewhere and that is the bug.
@@ -241,6 +243,7 @@ never mentions the plist), and then runs the harness:
 | `cgtest --settle` | the frame a figure closes in puts its last stroke with that figure |
 | `cgtest --blend` | an opaque pen hides, a lifting pen takes ink off, and both compose exactly with the split sheet |
 | `cgtest --keepgoing` | under Keep Going a closure is not an event: the pen does not move, and nothing settles |
+| `cgtest --unlessfaded` | the fade decides whether a figure closes: a lap longer than the limit is Keep Going to the letter, a shorter one is untouched, and raising the limit releases a held figure at its next homecoming |
 | `cgtest --presets` | every preset draws something with structure in it |
 | `cgtest --defaults` | the constructor's defaults *are* preset 1 |
 | `cgtest --hosts` | presets survive all three things a host can do with a value event |

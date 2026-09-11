@@ -40,6 +40,7 @@ void Crank::Restart( uint32_t seed )
 	theta       = 0.0;
 	slipTeeth   = 0.0;
 	figurePhase = 0.0;
+	figureSeconds = 0.0;
 	layer       = 0;
 	wipe        = false;
 	seedUsed    = seed;
@@ -144,12 +145,14 @@ void Crank::completeFigure( const CrankParams& params )
 		theta -= closeAt;
 		if( theta < 0.0 )
 			theta = 0.0;
-		figurePhase = 0.0;
+		figurePhase   = 0.0;
+		figureSeconds = 0.0;
 		return;
 	}
 
-	theta       = 0.0;
-	figurePhase = 0.0;
+	theta         = 0.0;
+	figurePhase   = 0.0;
+	figureSeconds = 0.0;
 
 	//Slip does not carry across a lifted pen. The wheel is taken out of the
 	//ring and put back, so whatever it had crept is gone -- and keeping it
@@ -234,6 +237,17 @@ Geometry Crank::Advance( const CrankParams& params, double frameSeconds,
 	//That wind-back is exact: a closed figure is periodic in theta with the
 	//period closeAt for any fixed slip, so the pen is where it was.
 	const bool keepGoing = params.change == Change::KeepGoing;
+
+	//Unless Faded (#25) is the same non-event, decided per figure: a figure
+	//that has been on the paper longer than `closeWithinSeconds` when it comes
+	//home carries on instead of closing. See the note on that field.
+	const bool timed = params.closeWithinSeconds > 0.0;
+
+	//How much of this frame the runs below account for. Normally all of it;
+	//what they do not -- a crank that is not turning, or a frame cut short by
+	//the step budget -- is still time the figure spent on the paper, and is
+	//added after the loop so the figure clock keeps wall time.
+	double spent = 0.0;
 
 	//How much of the figure this frame covers, and therefore how many steps it
 	//is worth. Steps are spent per turn rather than per second, so the ink lands
@@ -329,24 +343,33 @@ Geometry Crank::Advance( const CrankParams& params, double frameSeconds,
 			steps.push_back( s );
 		}
 
-		theta      += advance;
-		remaining  -= advance;
-		figurePhase = std::clamp( theta / closeAt, 0.0, 1.0 );
+		theta         += advance;
+		remaining     -= advance;
+		spent         += runSeconds;
+		figureSeconds += runSeconds;
+		figurePhase    = std::clamp( theta / closeAt, 0.0, 1.0 );
 
 		//Decided before the run is stored, so the renderer can tell the last
 		//stroke of a figure from the first stroke of the next one inside the
 		//same frame. See Run::closes. Under Keep Going no run ever closes:
 		//the renderer must not fold anything in, because nothing finished.
-		const bool home = theta >= closeAt - 1.0e-9;
-		run.closes      = home && !keepGoing;
+		//A figure that is home too late to close is the same non-event.
+		const bool home    = theta >= closeAt - 1.0e-9;
+		const bool faded   = timed && figureSeconds > params.closeWithinSeconds;
+		const bool carryOn = keepGoing || faded;
+		run.closes         = home && !carryOn;
 		runs.push_back( run );
 
-		if( home && keepGoing )
+		if( home && carryOn )
 		{
 			theta -= closeAt;
 			if( theta < 0.0 )
 				theta = 0.0;
-			figurePhase = 0.0;
+			figurePhase   = 0.0;
+			//The next time round is a new lap of the same figure, judged on
+			//its own time: a held figure stays held until the fade or the
+			//speed changes, and closes the first time round after they do.
+			figureSeconds = 0.0;
 		}
 		else if( home )
 		{
@@ -359,6 +382,9 @@ Geometry Crank::Advance( const CrankParams& params, double frameSeconds,
 		if( static_cast< int >( steps.size() ) >= kMaxSteps - 2 )
 			break;
 	}
+
+	if( frameSeconds > spent )
+		figureSeconds += frameSeconds - spent;
 
 	return geometry;
 }

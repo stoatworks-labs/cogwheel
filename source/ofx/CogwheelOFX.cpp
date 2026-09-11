@@ -847,6 +847,14 @@ const Decl kDecls[] = {
 	        "What moves when a figure closes and the next layer starts. Keep Going "
 	        "makes the closure no event at all: the pen stays down, the same pen in "
 	        "the same hole carries on round, and the slip keeps the figure growing." ),
+	TOGGLE( PT_UNLESS_FADED, "unlessFaded", "Unless Faded", 0.0f,
+	        "Let the fade decide. A figure that took longer to draw than the Fade "
+	        "time does not close when it comes home -- its start has faded from "
+	        "behind the pen, so the pen stays down and keeps going, exactly as under "
+	        "Keep Going. A figure quicker than the fade closes as On Closing says. "
+	        "So with one fade setting some wheels stack and some keep going; turn "
+	        "Fade up past a figure's time and it closes the next time round. Needs "
+	        "Fade above zero: with no fade nothing has faded and everything closes." ),
 	TOGGLE( PT_WIPE, "wipeSheet", "Wipe Sheet", 1.0f,
 	        "Start a fresh sheet when the whole stack is finished, rather than drawing "
 	        "the next stack over it." ),

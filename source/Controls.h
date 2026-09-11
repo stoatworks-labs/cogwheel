@@ -62,6 +62,11 @@ enum ParamId : unsigned int
 	// -- Layers --------------------------------------------------------------
 	PT_LAYERS,
 	PT_CHANGE,
+	// Inserted here in 0.6.0, mid-list, which is safe for the same reason the
+	// two below were: both hosts and the XML export match by name. It sits
+	// under On Closing because it is a clause of it -- "Next Hole, unless
+	// faded". See CrankParams::closeWithinSeconds.
+	PT_UNLESS_FADED,
 	PT_WIPE,
 
 	// -- The pen -------------------------------------------------------------
