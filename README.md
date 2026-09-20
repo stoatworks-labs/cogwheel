@@ -37,14 +37,14 @@ does falls out of it.
 
 ## Download
 
-**[v0.6.0](https://github.com/stoatworks-labs/cogwheel/releases/tag/v0.6.0)** — prebuilt for macOS, Windows and Linux. Pick your platform:
+**[v0.6.1](https://github.com/stoatworks-labs/cogwheel/releases/tag/v0.6.1)** — prebuilt for macOS, Windows and Linux. Pick your platform:
 
 <details>
 <summary><b>macOS</b> — Universal (Apple Silicon + Intel)</summary>
 
 | Build | Download | Size |
 | --- | --- | --- |
-| Universal (Apple Silicon + Intel) · .dmg disk image | [`cogwheel-0.6.0-macos-universal.dmg`](https://github.com/stoatworks-labs/cogwheel/releases/download/v0.6.0/cogwheel-0.6.0-macos-universal.dmg) | 523 KB |
+| Universal (Apple Silicon + Intel) · .dmg disk image | [`cogwheel-0.6.1-macos-universal.dmg`](https://github.com/stoatworks-labs/cogwheel/releases/download/v0.6.1/cogwheel-0.6.1-macos-universal.dmg) | 523 KB |
 | Universal (Apple Silicon + Intel) · .zip archive | [`cogwheel-macos-universal.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-macos-universal.zip) | 462 KB |
 | Universal (Apple Silicon + Intel) · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`cogwheel-ofx-macos-universal.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-ofx-macos-universal.zip) | 470 KB |
 
@@ -55,7 +55,7 @@ does falls out of it.
 
 | Build | Download | Size |
 | --- | --- | --- |
-| x64 · .exe installer | [`cogwheel-0.6.0-windows-x86_64-setup.exe`](https://github.com/stoatworks-labs/cogwheel/releases/download/v0.6.0/cogwheel-0.6.0-windows-x86_64-setup.exe) | 259 KB |
+| x64 · .exe installer | [`cogwheel-0.6.1-windows-x86_64-setup.exe`](https://github.com/stoatworks-labs/cogwheel/releases/download/v0.6.1/cogwheel-0.6.1-windows-x86_64-setup.exe) | 259 KB |
 | x64 · .zip archive | [`cogwheel-windows-x86_64.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-windows-x86_64.zip) | 290 KB |
 | x64 · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`cogwheel-ofx-windows-x86_64.zip`](https://github.com/stoatworks-labs/cogwheel/releases/latest/download/cogwheel-ofx-windows-x86_64.zip) | 179 KB |
 
