@@ -27,7 +27,7 @@ public:
 static CFFGLPluginInfo PluginInfo(
 	PluginFactory< CogwheelEffect >,                      // Create method
 	"CW02",                                               // Plugin unique ID of maximum length 4
-	"Cogwheel Ink",                                       // Plugin name
+	"SW Cogwheel Ink",                                    // Plugin name
 	2,                                                    // API major version number
 	1,                                                    // API minor version number
 	0,                                                    // Plugin major version number
