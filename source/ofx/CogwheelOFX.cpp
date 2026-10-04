@@ -135,7 +135,9 @@ constexpr const char* kPluginDescription =
 	"This OpenFX build renders on the CPU: there is no OpenGL context to be had "
 	"in an OFX host. A drawing is history, so it replays from the start of the "
 	"clip; render forwards.\n\n"
-	"Fusion reports no frame rate; there, time-based controls assume 24 fps.\n\n"
+	"Resolve's Fusion page reports the frame rate on the effect but not on its "
+	"clips; the plugin reads the effect's, and assumes 24 fps only where a host "
+	"reports none.\n\n"
 	"https://stoatworks-labs.com";
 
 /// Mirrors `render/Shaders.cpp`'s kConstants. `Extent` is the half-width of the
@@ -1028,17 +1030,17 @@ static_assert( sizeof( kPresetParamIDs ) / sizeof( kPresetParamIDs[ 0 ] ) == pre
 //===========================================================================
 namespace
 {
-/// The frame rate when the host reports none: 24, Resolve's default timeline
-/// rate. Resolve's Fusion page reports no frame rate anywhere.
+/// The frame rate when the host reports none anywhere: 24, Resolve's default
+/// timeline rate.
 constexpr double kFallbackFrameRate = 24.0;
 
 /// OFX time is in frames. This is the first positive, finite frame rate the
 /// host gives -- the output clip's, the source clip's, the effect's -- else
 /// kFallbackFrameRate. Each read is its own try: Resolve's Fusion page gives
-/// kOfxImageEffectPropFrameRate on neither the effect nor any clip, the
-/// Support library throws on a property the host lacks, and a throw out of
-/// render fails the render -- in Fusion, a composition that "could not be
-/// processed successfully".
+/// kOfxImageEffectPropFrameRate on the effect but on no clip, the Support
+/// library throws on a property the host lacks, and a throw out of render
+/// fails the render -- in Fusion, a composition that "could not be processed
+/// successfully". There the effect's rate, the timeline's, is the one used.
 double framesPerSecond( const OFX::ImageEffect& effect, const OFX::Clip* output, const OFX::Clip* source )
 {
 	const auto usable = []( double rate ) { return std::isfinite( rate ) && rate > 0.0; };
@@ -1578,8 +1580,8 @@ private:
 	               OFX::Image* src, SheetSetup& setup )
 	{
 		// OFX hands render time in frames. A host that reports no frame rate
-		// -- Resolve's Fusion page -- gets 24 (see framesPerSecond): wrong
-		// somewhere, but never zero, which would make every frame the first one.
+		// anywhere gets 24 (see framesPerSecond): wrong somewhere, but never
+		// zero, which would make every frame the first one.
 		const double fps = framesPerSecond( *this, dstClip, srcClip );
 
 		// Clamped the way Clock::Update clamps its own delta, and for the same
