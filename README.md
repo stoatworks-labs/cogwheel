@@ -212,6 +212,13 @@ exactly as it would if the plugin were broken. That is how this was first
 mis-diagnosed. `OFX_PLUGIN_PATH` works as an override if you cannot write to
 `/Library`.
 
+**Fusion reports no frame rate; there, time-based controls assume 24 fps.**
+Resolve's Fusion page gives an OpenFX plugin no frame rate at all, and the first
+OpenFX builds failed every render there. Now Cogwheel falls back to 24, Resolve's
+default timeline rate, so in Fusion the drawing machine runs as if the composition
+were 24 fps whatever its real rate. A host that reports a rate, Resolve's Edit page
+included, gets its own.
+
 ## Building and testing
 
 Requires CMake 3.15+ and a C++17 compiler. The FFGL SDK is a submodule.
