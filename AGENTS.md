@@ -242,6 +242,24 @@ frame beyond that frame's own strokes; scrubbing backwards through a long
 drawing is slow and gets slower the further in you are. That is stated in the
 plugin description rather than hidden.
 
+### ☠️ The OFX declaration table is in panel order: never index it by id
+
+The panel shows Pen Type and Blend before Ink, while `ParamId` numbers Ink's three
+components first, so for ids 19 to 23 `kDecls[ id ]` is not the declaration of `id`.
+`applyPreset` looked declarations up that way. For Ink it took Pen Type's kind,
+Option, and wrote one int through the Ink RGB handle, which the host read as a
+colour of 4.9e-324; for Ink's green it took Blend's kind against a null handle and
+segfaulted. So picking any factory preset in the OpenFX build crashed the host.
+v0.6.1, the current release, has the same table.
+
+`declFor()` now finds a declaration by its id. `kDecls` is `constexpr`, and a
+`static_assert` proves every id before the About block has exactly one declaration
+-- the count check that was already there passes a table in any order.
+
+Checked under `ofxprobe`: all eight presets apply in both plugins (each died with
+SIGSEGV before), Ink receives the preset's colour, and a render with no preset
+picked is byte-identical to before.
+
 ### Everything else
 
 - **`Centre` is ±1.5 paper units, not ±2.** At ±2 both ends of Centre Y put the

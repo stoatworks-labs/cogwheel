@@ -87,6 +87,7 @@
 ///   picture. It is kept so that the two parameter lists match.
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
 #include <memory>
@@ -776,7 +777,7 @@ struct Decl
 #define ABSENT( id ) \
 	{ id, Kind::Absent, nullptr, nullptr, nullptr, 0.0f, 0.0f, 1.0f, nullptr, 0, nullptr }
 
-const Decl kDecls[] = {
+constexpr Decl kDecls[] = {
 	//--- Always visible ----------------------------------------------------
 	// First and ungrouped, matching the FFGL panel. See PT_RESET in Controls.h.
 	{ PT_RESET, Kind::Button, "newSheet", "New Sheet",
@@ -974,7 +975,38 @@ const Decl kDecls[] = {
 };
 
 static_assert( sizeof( kDecls ) / sizeof( kDecls[ 0 ] ) == PT_ABOUT_TEXT,
-               "every parameter before the About block needs a Decl, in id order" );
+               "every parameter before the About block needs a Decl" );
+
+/// The table is in PANEL order, and that is not id order: the panel shows Pen
+/// Type and Blend before Ink, while ParamId numbers Ink's three components
+/// first. So a declaration is found by its id through declFor(), never as
+/// kDecls[ id ] -- which hands back whichever declaration happens to sit at
+/// that position, with another parameter's kind, against this id's handle.
+constexpr bool everyIdDeclaredOnce()
+{
+	for( unsigned int id = 0; id < static_cast< unsigned int >( PT_ABOUT_TEXT ); ++id )
+	{
+		int seen = 0;
+		for( const Decl& d : kDecls )
+			seen += d.id == id ? 1 : 0;
+		if( seen != 1 )
+			return false;
+	}
+	return true;
+}
+
+static_assert( everyIdDeclaredOnce(), "every parameter id needs exactly one Decl" );
+
+const Decl& declFor( unsigned int id )
+{
+	static const std::array< const Decl*, PT_ABOUT_TEXT > byId = [] {
+		std::array< const Decl*, PT_ABOUT_TEXT > table{};
+		for( const Decl& d : kDecls )
+			table[ d.id ] = &d;
+		return table;
+	}();
+	return *byId[ id ];
+}
 
 constexpr unsigned int kPresetParamIDs[] = {
 	PT_RING, PT_WHEEL, PT_MESH, PT_PEN, PT_SNAP_SET, PT_SNAP_HOLES,
@@ -1234,7 +1266,7 @@ private:
 		for( int j = 0; j < presets::kParamCount; ++j )
 		{
 			const unsigned int id = kPresetParamIDs[ j ];
-			const Decl& d         = kDecls[ id ];
+			const Decl& d         = declFor( id );
 			switch( d.kind )
 			{
 			case Kind::Slider:
