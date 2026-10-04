@@ -18,11 +18,14 @@ evaluates a curve.** Set the two tooth counts and the figure follows.
 > **Both plugins have been loaded and run in Resolume Arena 7.27.1, on macOS and on Windows** —
 > they register with the right names and categories, expose all 50 controls with nothing
 > truncated, render, and hold a factory preset through live rendering. **DaVinci Resolve Studio
-> 21.0.2.4 lists the OpenFX build**, and it renders correctly in an independent OFX host. What is
-> still unconfirmed is narrower: the OpenFX build has not been driven over a clip inside Resolve,
-> so its CPU renderer is proven to run and not yet proven to match the GPU one pixel for pixel.
+> 21.0.2.4 lists the OpenFX build**, it renders correctly in an independent OFX host, and from
+> v0.6.2 both plugins render as tools on the Fusion page of Resolve Studio 21.1. What is still
+> unconfirmed is narrower: nobody has compared its output inside Resolve with the GPU's, so its
+> CPU renderer is proven to run and not yet proven to match the GPU one pixel for pixel.
 >
-> Released at **v0.6.0**.
+> Released at **v0.6.2**, which fixes two things in the OpenFX build: every render on Resolve's
+> Fusion page failed (and the generator now animates there), and choosing a factory preset
+> crashed the host.
 >
 > This codebase was created with AI assistance, directed and reviewed by a human author.
 

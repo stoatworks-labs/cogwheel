@@ -250,7 +250,7 @@ components first, so for ids 19 to 23 `kDecls[ id ]` is not the declaration of `
 Option, and wrote one int through the Ink RGB handle, which the host read as a
 colour of 4.9e-324; for Ink's green it took Blend's kind against a null handle and
 segfaulted. So picking any factory preset in the OpenFX build crashed the host.
-v0.6.1, the current release, has the same table.
+v0.6.1 shipped that table; v0.6.2 is the fix.
 
 `declFor()` now finds a declaration by its id. `kDecls` is `constexpr`, and a
 `static_assert` proves every id before the About block has exactly one declaration

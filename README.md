@@ -13,9 +13,10 @@
 > names, ids and categories, expose all 50 controls with nothing truncated,
 > render, and hold a factory preset through live rendering. The OpenFX build has
 > been loaded by **DaVinci Resolve Studio 21.0.2.4**, which lists both plugins in
-> its OpenFX library, and renders correctly through an independent OFX host. It
-> has **not** been driven over a clip inside Resolve, and nothing here has been
-> used on a show.
+> its OpenFX library, and renders correctly through an independent OFX host.
+> From v0.6.2 both plugins render as tools on the Fusion page of **Resolve
+> Studio 21.1**, where earlier builds failed every frame; nobody has compared
+> that output with the GPU's, and nothing here has been used on a show.
 
 A Spirograph, as two plugins for Resolume Arena/Avenue and as an OpenFX plugin
 for DaVinci Resolve.
@@ -201,9 +202,14 @@ of them.
 **OpenFX**, same day: `ofxprobe` — an independent OFX host — loads both plugins,
 reports 54 parameters and renders a correct frame through the CPU renderer, and
 **DaVinci Resolve Studio 21.0.2.4 lists both under a "Stoatworks" group** in its
-OpenFX library. What has *not* been done is applying it to a clip inside Resolve
-and looking at the result, so the CPU renderer is proven to run and not yet
-proven to match the GPU one.
+OpenFX library. What had *not* been done then is applying it to a clip inside
+Resolve and looking at the result, so the CPU renderer was proven to run and not
+yet proven to match the GPU one.
+
+**Resolve's Fusion page**, 2026-10-04, Resolve Studio 21.1 on macOS: from v0.6.2
+both plugins render there as tools — Cogwheel as a generator whose frames move,
+Cogwheel Ink fed by a MediaIn. Earlier builds failed every render there (below).
+The output there has still not been compared with the GPU's.
 
 ⚠️ **On macOS the bundle must go in `/Library/OFX/Plugins`, which needs an
 administrator.** `~/Library/OFX/Plugins` is **silently ignored** — Resolve

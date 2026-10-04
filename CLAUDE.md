@@ -120,9 +120,10 @@ Disable with `-DBUILD_OFX=OFF`.
 
 - **First contact is DONE for FFGL** (Arena 7.27.1, macOS and Windows) **and for
   OpenFX** (Resolve Studio 21.0.2.4 lists both plugins; ofxprobe renders one) —
-  2026-08-27, see `docs/NOTES.md`. Still outstanding: the OFX build has never
-  been applied to a clip inside Resolve, so its CPU renderer has not been
-  compared against the GPU one frame for frame.
+  2026-08-27, see `docs/NOTES.md`. Since v0.6.2 both plugins render as tools on
+  Resolve 21.1's Fusion page (2026-10-04; Cogwheel Ink over a MediaIn). Still
+  outstanding: its CPU renderer has not been compared against the GPU one frame
+  for frame.
 - ⚠️ **`~/Library/OFX/Plugins` is silently ignored by Resolve.** The bundle must
   be in `/Library/OFX/Plugins` (needs admin) or reached by `OFX_PLUGIN_PATH`. An
   OFX plugin in the user path looks exactly like a broken one.
