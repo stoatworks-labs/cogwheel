@@ -2194,6 +2194,53 @@ int runConfig()
 		       "a file that is not ours is refused and touches nothing" );
 	}
 
+	// #9's follow-up: Load XML's default is the export folder, so the picker
+	// opens where the exports are. The SDK hands that default straight back
+	// through SetTextParameter at instantiation, so it must read as "no file"
+	// -- with and without the separator a host might strip off it.
+	{
+		const std::string start = config::PickerStart();
+		check( start.size() == dir.size() + 1 && start.compare( 0, dir.size(), dir ) == 0
+		           && ( start.back() == '/' || start.back() == '\\' ),
+		       "Load XML's default is the export folder, as a folder" );
+
+		CogwheelPlugin plugin( false );
+		plugin.SetFloatParameter( PT_PRESET, 3.0f );
+		plugin.SetTextParameter( PT_LOAD, start.c_str() );
+		plugin.SetTextParameter( PT_LOAD, dir.c_str() );
+		check( std::lround( plugin.GetFloatParameter( PT_PRESET ) ) == 3
+		           && std::string( plugin.GetParameterDisplay( PT_LOAD ) ) == "none",
+		       "the folder as a value loads nothing and fails nothing" );
+	}
+
+	// A Documents folder with a name outside ASCII -- OneDrive for work calls
+	// its folder after the organisation. On macOS this is UTF-8 end to end; on
+	// Windows it is the reason Config.cpp goes through the wide API.
+	{
+		const std::string accented = dir + "/OneDrive - Soci\xC3\xA9t\xC3\xA9";
+#if defined( _WIN32 )
+		_putenv_s( "COGWHEEL_EXPORT_DIR", accented.c_str() );
+#else
+		setenv( "COGWHEEL_EXPORT_DIR", accented.c_str(), 1 );
+#endif
+		CogwheelPlugin out( false );
+		out.SetFloatParameter( PT_PRESET, 0.0f );
+		for( const Set& s : look )
+			out.SetFloatParameter( s.id, s.value );
+		out.ExportConfig();
+		const std::string written = out.LastExportPath();
+
+		CogwheelPlugin in( false );
+		in.SetTextParameter( PT_LOAD, written.c_str() );
+		check( !written.empty() && written.compare( 0, accented.size(), accented ) == 0 && matches( in ),
+		       "a folder with an accented name round-trips" );
+#if defined( _WIN32 )
+		_putenv_s( "COGWHEEL_EXPORT_DIR", dir.c_str() );
+#else
+		setenv( "COGWHEEL_EXPORT_DIR", dir.c_str(), 1 );
+#endif
+	}
+
 	//-----------------------------------------------------------------------
 	// #22. Reopening a saved composition must give the operator back what they
 	// saved, not what the file they once loaded says.

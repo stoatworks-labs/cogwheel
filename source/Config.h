@@ -45,9 +45,27 @@ struct Loaded
 	float       value = 0.0f;
 };
 
-/// Where exports are written. Honours COGWHEEL_EXPORT_DIR, which is also how
-/// the harness keeps its files out of a real person's Documents folder.
+/// Where exports are written: a `cogwheel` folder in the user's Documents.
+/// Honours COGWHEEL_EXPORT_DIR, which is also how the harness keeps its files
+/// out of a real person's Documents folder.
+///
+/// Every path this file hands out or takes in is UTF-8. On Windows that is
+/// converted to UTF-16 at the file system and nowhere else, because the narrow
+/// API reads a path in the system code page and OneDrive for work names its
+/// folder after the organisation -- "OneDrive - Société" is one accent away
+/// from a file that cannot be opened.
 std::string ExportDirectory();
+
+/// `ExportDirectory()` with a trailing separator: the Load XML parameter's
+/// default, so a host that opens its picker at the parameter's value opens it
+/// where the exports are. A folder rather than a file, so that the SDK setting
+/// the default at instantiation is never mistaken for a file to load.
+std::string PickerStart();
+
+/// True for a path that names a folder rather than a file: one that ends in a
+/// separator, or that exists and is a directory. Load XML's default is one,
+/// and so is anything a host makes of it, and none of them is a file to read.
+bool NamesAFolder( const std::string& path );
 
 /// XML-escape one attribute value. Public because it is the part most likely
 /// to be wrong and the part cheapest to test.
@@ -59,6 +77,7 @@ std::string Document( const std::vector< Row >& rows,
                       const std::string& stamp );
 
 /// Write `Document()` into `ExportDirectory()`, creating it if needed.
+/// `pathOut` is UTF-8, like every path here.
 ///
 /// Returns false and fills `error` on any failure. `pathOut` is the full path
 /// written, which is worth logging: an operator who presses a button and sees
@@ -80,7 +99,9 @@ bool Parse( const std::string& xml, std::vector< Loaded >& rows,
             std::string& preset, std::string& error );
 
 /// The whole of one file, as text. Returns false and fills `error` if it
-/// cannot be read or is empty.
+/// cannot be read or is empty. `path` is UTF-8; on Windows a path that is not
+/// valid UTF-8 is read in the system code page instead, because FFGL does not
+/// say which one a host sends.
 bool ReadFile( const std::string& path, std::string& text, std::string& error );
 
 } // namespace cogwheel::config

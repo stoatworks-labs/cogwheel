@@ -96,6 +96,13 @@ if(NOT APPLE)
     target_link_libraries(cogwheel_core PUBLIC GLEW::GLEW)
 endif()
 
+# Config.cpp asks the shell where Documents really is (SHGetKnownFolderPath,
+# CoTaskMemFree, FOLDERID_Documents). MSVC links these by default; naming them
+# keeps that from being the only reason the plugin links.
+if(WIN32)
+    target_link_libraries(cogwheel_core PUBLIC shell32 ole32 uuid)
+endif()
+
 #-----------------------------------------------------------------------------
 # The two plugins.
 #

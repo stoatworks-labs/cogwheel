@@ -9,6 +9,10 @@
 
 #if defined( _WIN32 )
 	#include <windows.h>
+	#include <knownfolders.h>
+	#include <shlobj.h>
+#else
+	#include <sys/stat.h>
 #endif
 
 namespace cogwheel::config
@@ -17,20 +21,81 @@ namespace
 {
 constexpr const char* kAppName = "cogwheel";
 
+#if defined( _WIN32 )
+constexpr char kSeparator = '\\';
+
+std::string utf8( const wchar_t* wide )
+{
+	if( wide == nullptr || *wide == L'\0' )
+		return {};
+	const int bytes = WideCharToMultiByte( CP_UTF8, 0, wide, -1, nullptr, 0, nullptr, nullptr );
+	if( bytes <= 1 )
+		return {};
+	std::string out( static_cast< size_t >( bytes - 1 ), '\0' );
+	WideCharToMultiByte( CP_UTF8, 0, wide, -1, out.data(), bytes, nullptr, nullptr );
+	return out;
+}
+
+/// UTF-8 first, and strictly: a host that sends the system code page instead
+/// produces bytes that are not valid UTF-8, and reading those as the code page
+/// is the only reading that finds the file.
+std::wstring wide( const std::string& text )
+{
+	if( text.empty() )
+		return {};
+	for( UINT page : { static_cast< UINT >( CP_UTF8 ), static_cast< UINT >( CP_ACP ) } )
+	{
+		const DWORD flags = page == CP_UTF8 ? MB_ERR_INVALID_CHARS : 0;
+		const int units   = MultiByteToWideChar( page, flags, text.c_str(), -1, nullptr, 0 );
+		if( units <= 1 )
+			continue;
+		std::wstring out( static_cast< size_t >( units - 1 ), L'\0' );
+		MultiByteToWideChar( page, flags, text.c_str(), -1, out.data(), units );
+		return out;
+	}
+	return {};
+}
+
+std::string environmentVariable( const char* name )
+{
+	return utf8( _wgetenv( wide( name ).c_str() ) );
+}
+
+/// Where Documents actually is. `%USERPROFILE%\Documents` is only where it
+/// starts out: OneDrive's backup moves it into `OneDrive\Documents`, an
+/// organisation can redirect it, and anyone can move it from its Properties.
+/// No environment variable follows it there -- the known-folder API is the one
+/// source of truth, and it is what Explorer and Resolume both ask. #9: an
+/// operator whose Documents was in OneDrive found exports in a folder beside
+/// it that nothing else on the machine uses.
+std::string documentsDirectory()
+{
+	PWSTR path         = nullptr;
+	const HRESULT done = SHGetKnownFolderPath( FOLDERID_Documents, KF_FLAG_DEFAULT, nullptr, &path );
+	std::string found  = SUCCEEDED( done ) ? utf8( path ) : std::string();
+	CoTaskMemFree( path );//documented as required even when the call fails
+	if( !found.empty() )
+		return found;
+
+	const std::string home = environmentVariable( "USERPROFILE" );
+	return home.empty() ? std::string() : home + "\\Documents";
+}
+#else
+constexpr char kSeparator = '/';
+
 std::string environmentVariable( const char* name )
 {
 	const char* value = std::getenv( name );
 	return value ? std::string( value ) : std::string();
 }
 
-std::string homeDirectory()
+/// `~/Documents` is the real one on macOS -- iCloud's Desktop and Documents
+/// syncs that folder where it is rather than moving it.
+std::string documentsDirectory()
 {
-#if defined( _WIN32 )
-	return environmentVariable( "USERPROFILE" );
-#else
-	return environmentVariable( "HOME" );
-#endif
+	return environmentVariable( "HOME" ) + "/Documents";
 }
+#endif
 
 /// Same shape as Diag's, but NOT the log directory. A log is something you go
 /// looking for when a thing is broken; an exported configuration is something
@@ -38,14 +103,15 @@ std::string homeDirectory()
 void createDirectories( const std::string& path )
 {
 #if defined( _WIN32 )
-	std::string partial;
-	for( char c : path )
+	const std::wstring whole = wide( path );
+	std::wstring partial;
+	for( wchar_t c : whole )
 	{
 		partial += c;
-		if( c == '\\' || c == '/' )
-			CreateDirectoryA( partial.c_str(), nullptr );
+		if( c == L'\\' || c == L'/' )
+			CreateDirectoryW( partial.c_str(), nullptr );
 	}
-	CreateDirectoryA( path.c_str(), nullptr );
+	CreateDirectoryW( whole.c_str(), nullptr );
 #else
 	const std::string command = "mkdir -p '" + path + "'";
 	(void)std::system( command.c_str() );
@@ -59,11 +125,29 @@ std::string ExportDirectory()
 	if( !override_.empty() )
 		return override_;
 
-	const std::string home = homeDirectory();
+	return documentsDirectory() + kSeparator + kAppName;
+}
+
+std::string PickerStart()
+{
+	std::string start = ExportDirectory();
+	if( !start.empty() && start.back() != '/' && start.back() != '\\' )
+		start += kSeparator;
+	return start;
+}
+
+bool NamesAFolder( const std::string& path )
+{
+	if( path.empty() )
+		return false;
+	if( path.back() == '/' || path.back() == '\\' )
+		return true;
 #if defined( _WIN32 )
-	return home + "\\Documents\\" + kAppName;
+	const DWORD attributes = GetFileAttributesW( wide( path ).c_str() );
+	return attributes != INVALID_FILE_ATTRIBUTES && ( attributes & FILE_ATTRIBUTE_DIRECTORY ) != 0;
 #else
-	return home + "/Documents/" + kAppName;
+	struct stat info {};
+	return stat( path.c_str(), &info ) == 0 && S_ISDIR( info.st_mode );
 #endif
 }
 
@@ -185,7 +269,11 @@ bool Parse( const std::string& xml, std::vector< Loaded >& rows,
 
 bool ReadFile( const std::string& path, std::string& text, std::string& error )
 {
+#if defined( _WIN32 )
+	std::ifstream file( wide( path ).c_str(), std::ios::binary );//MSVC's wide overload
+#else
 	std::ifstream file( path, std::ios::binary );
+#endif
 	if( !file )
 	{
 		error = "could not open " + path;
@@ -252,13 +340,13 @@ bool Write( const std::vector< Row >& rows,
 	const std::string directory = ExportDirectory();
 	createDirectories( directory );
 
-#if defined( _WIN32 )
-	pathOut = directory + "\\" + leaf;
-#else
-	pathOut = directory + "/" + leaf;
-#endif
+	pathOut = directory + kSeparator + leaf;
 
+#if defined( _WIN32 )
+	std::ofstream file( wide( pathOut ).c_str(), std::ios::binary | std::ios::trunc );
+#else
 	std::ofstream file( pathOut, std::ios::binary | std::ios::trunc );
+#endif
 	if( !file )
 	{
 		error = "could not open " + pathOut;

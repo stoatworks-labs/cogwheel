@@ -213,7 +213,12 @@ void CogwheelPlugin::declareParameters()
 	// A FILE parameter: Resolume shows a picker filtered to the extension, and
 	// hands the chosen path to SetTextParameter. The nearest thing FFGL has to
 	// a user-defined preset -- the file is the slot.
-	SetFileParamInfo( PT_LOAD, "Load XML", { "xml" }, "" );
+	//
+	// Its default is the folder Export XML writes to, so the picker opens where
+	// the exports are (#9's last request) rather than wherever the host last
+	// looked. A folder, never a file: the SDK hands the default straight back
+	// through SetTextParameter at instantiation, and a file there would load.
+	SetFileParamInfo( PT_LOAD, "Load XML", { "xml" }, config::PickerStart().c_str() );
 
 	// -- Groups --------------------------------------------------------------
 	//
@@ -625,7 +630,9 @@ FFResult CogwheelPlugin::SetTextParameter( unsigned int index, const char* value
 		if( path == loadPath )
 			return FF_SUCCESS;
 		loadPath = path;
-		if( path.empty() )
+		// Empty, or the folder the picker starts in -- the default, or what a
+		// host restoring a composition makes of it. Neither is a file.
+		if( path.empty() || config::NamesAFolder( path ) )
 		{
 			loadNote = "none";
 			return FF_SUCCESS;
