@@ -71,9 +71,14 @@ while it is running, or to remember one between sessions. So there is no "save p
 button, and there cannot be one.
 
 What there is instead is a pair of controls next to the dropdown. **Export XML** writes every
-control's current value to a timestamped file:
+control's current value to a timestamped file in a `cogwheel` folder in your Documents:
 
     ~/Documents/cogwheel/cogwheel-20260901-152822.xml
+
+On Windows that is your Documents folder wherever Windows has put it. If OneDrive backs it up,
+that is `OneDrive\Documents\cogwheel`, not a second Documents folder beside it — the folder
+Explorer opens when you click Documents. (Before v0.6.3 it was always `C:\Users\<you>\Documents`,
+which on a OneDrive machine is not the one you look in.)
 
 Each line carries both the number the plugin stores and the readable version of it, so the
 file is worth reading as well as keeping:
@@ -83,8 +88,8 @@ file is worth reading as well as keeping:
 <parameter id="8" name="Speed" type="standard" value="0.737000" display="1.63 turns/s"/>
 ```
 
-**Load XML**, new in v0.3.0, reads one back. It is a file picker: choose a file and every
-control the file names is set from it, the sheet is wiped for the new machine, and the Preset
+**Load XML**, new in v0.3.0, reads one back. It is a file picker, and from v0.6.3 its value
+starts out as the folder Export XML writes to rather than empty. Choose a file and every control the file names is set from it, the sheet is wiped for the new machine, and the Preset
 dropdown drops to **Custom**, because the file is now the truth. The row next to it says
 `loaded`, `remembered`, or `failed - see log`. The full path — and any row the plugin could not
 place — goes to the diagnostics log, because sixteen characters of parameter display is not room

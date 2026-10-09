@@ -598,3 +598,58 @@ Not in the preset table, deliberately: it is a performance switch, not part of
 a look, and a preset that flipped it under the operator would be the surprise
 On Closing already is. Every composition saved before 0.6.0 opens with it off.
 
+
+## 2026-10-09 — Export XML follows Documents wherever Windows has put it (#9)
+
+#9 was closed when Load XML shipped, and the reporter came back to it the same
+evening with two things: on Windows the exports landed in
+`C:\Users\steve\Documents\cogwheel` while his library lives in
+`C:\Users\steve\OneDrive\Documents`, and the Load XML picker did not start in the
+export folder. Both went unanswered on a closed issue for a month, which a sweep
+of *open* issues could not see.
+
+**`%USERPROFILE%\Documents` is only where Documents starts out.** OneDrive's
+backup moves it into `OneDrive\Documents`, an organisation can redirect it, and
+anyone can move it from its Properties. No environment variable follows it —
+there is no `%DOCUMENTS%`, and `%USERPROFILE%` was the bug. The known-folder API
+(`SHGetKnownFolderPath(FOLDERID_Documents)`) is the one source of truth, and it
+is what Explorer and Resolume ask. macOS needed nothing: iCloud's Desktop and
+Documents syncs `~/Documents` where it is.
+
+**Paths are UTF-8 throughout and go through the wide API on Windows.** OneDrive
+for work names its folder after the organisation (`OneDrive - <Company>`), and
+the narrow API reads a path in the system code page — a name outside it cannot
+be opened at all. A path that arrives at Load XML and is not valid UTF-8 is read
+in the code page instead, because FFGL does not say which one a host sends.
+
+**Load XML's default is the export folder, as a folder.** The SDK hands every
+text parameter's default straight back through `SetTextParameter` at
+instantiation, so a *file* there would load itself into every new clip. A path
+that names a folder — trailing separator, or an existing directory, for a host
+that strips the separator — now reads as "no file" and shows `none`.
+
+Decided against: a save dialog of the plugin's own. FFGL calls arrive on the
+host's render thread, so a modal dialog there freezes every output until it is
+dismissed; off-thread it has to run on the host's UI thread on macOS, and on
+Windows it tends to open behind a fullscreen output.
+
+### Verified, and not
+
+- `cgtest --config` gained three rows: the default is the export folder as a
+  folder; the folder as a value, with and without its separator, loads nothing
+  and fails nothing; an export folder named `OneDrive - Société` round-trips.
+- **On win-lab (real Windows 11, code page 1252)**, a scratch harness linking
+  `Config.cpp` ran with Documents redirected through the same registry value
+  OneDrive sets (`User Shell Folders\Personal`, restored afterwards): the export
+  folder followed the move to `…\OneDrive - Société Łódź\Documents\cogwheel` —
+  `Ł` is outside 1252, so the old narrow path could not have opened it — the
+  file was written there and read back, and the same file read back from its
+  code-page spelling.
+- CI built the branch on Windows; that DLL loaded in Arena 7.27.1 on win-lab,
+  registered as `SW Cogwheel`, and the REST API reports Load XML's value as
+  `C:\Users\lab\Documents\cogwheel\` — the host took the default. The plugin's
+  log shows no failed load at instantiation.
+- **Not verified: where Arena's browse button opens.** win-lab's desktop was
+  frozen under stale Windows Firewall prompts for another app, so the dialog
+  could not be seen. Whether Resolume starts its picker at the parameter's value
+  is still an open question; the guide claims only that the value starts there.

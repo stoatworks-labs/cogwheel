@@ -329,6 +329,11 @@ on a moving sequence, on a still and under `--quirks fusion`.
   counts can be tooth counts.
 - Override `SetTextParameter` to return `FF_SUCCESS` for the About block, or no
   host can instantiate the plugin at all.
+- **Windows Documents is a known folder, never `%USERPROFILE%\Documents`.**
+  OneDrive moves it, and no environment variable follows. `Config.cpp` asks
+  `SHGetKnownFolderPath` and keeps every path UTF-8, converting to UTF-16 only at
+  the file system. Load XML's default is a FOLDER on purpose: the SDK feeds the
+  default back through `SetTextParameter` at instantiation.
 - `cogwheel_core` is an OBJECT library, not STATIC — the plugin registers itself
   from a file-scope constructor nothing references by name.
 - macOS builds must be universal. Verify with `lipo`, never the build log.
