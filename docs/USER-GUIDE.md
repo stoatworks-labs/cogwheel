@@ -23,9 +23,10 @@ evaluates a curve.** Set the two tooth counts and the figure follows.
 > unconfirmed is narrower: nobody has compared its output inside Resolve with the GPU's, so its
 > CPU renderer is proven to run and not yet proven to match the GPU one pixel for pixel.
 >
-> Released at **v0.6.2**, which fixes two things in the OpenFX build: every render on Resolve's
-> Fusion page failed (and the generator now animates there), and choosing a factory preset
-> crashed the host.
+> Released at **v0.6.3**, which puts Export XML's files in Documents wherever Windows has moved
+> it, OneDrive included, and starts Load XML's value in that folder. v0.6.2 fixed two things in
+> the OpenFX build: every render on Resolve's Fusion page failed (and the generator now animates
+> there), and choosing a factory preset crashed the host.
 >
 > This codebase was created with AI assistance, directed and reviewed by a human author.
 
