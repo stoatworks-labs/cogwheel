@@ -16,12 +16,13 @@ evaluates a curve.** Set the two tooth counts and the figure follows.
 > code that ships, and a control sweep fails if any parameter turns out to do nothing.
 >
 > **Both plugins have been loaded and run in Resolume Arena 7.27.1, on macOS and on Windows.**
-> They register with the right names and categories, expose all 50 controls with nothing
-> truncated, render, and hold a factory preset through live rendering. **DaVinci Resolve Studio
-> 21.0.2.4 lists the OpenFX build**, it renders correctly in an independent OFX host, and from
-> v0.6.2 both plugins render as tools on the Fusion page of Resolve Studio 21.1. What's still
-> unconfirmed is narrower: nobody has compared its output inside Resolve with the GPU's, so its
-> CPU renderer is proven to run but not yet proven to match the GPU one pixel for pixel.
+> They register with the right names and categories, expose all of v0.1.0's 48 controls (v0.6.3
+> has 54) with nothing truncated, render, and hold a factory preset through live rendering.
+> **DaVinci Resolve Studio 21.0.2.4 lists the OpenFX build**, it renders correctly in an
+> independent OFX host, and from v0.6.2 both plugins render as tools on the Fusion page of
+> Resolve Studio 21.1. What's still unconfirmed is narrower: nobody has compared its output
+> inside Resolve with the GPU's, so its CPU renderer is proven to run but not yet proven to match
+> the GPU one pixel for pixel.
 >
 > This is **v0.6.3**, which puts Export XML's files in Documents wherever Windows has moved it,
 > OneDrive included, and starts Load XML's value in that folder. v0.6.2 fixed two things in the

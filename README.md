@@ -6,11 +6,12 @@
 > (they're listed under Building and testing), and a control sweep that fails if any parameter
 > does nothing found one on its first run. Both plugins have been **loaded into Resolume Arena
 > 7.27.1 on macOS and on Windows**: they register with the right names, ids and categories,
-> expose all 50 controls with nothing truncated, render, and hold a factory preset through live
-> rendering. **DaVinci Resolve Studio 21.0.2.4** lists the OpenFX build, which renders correctly
-> through an independent OFX host, and from v0.6.2 both plugins render as tools on the Fusion
-> page of **Resolve Studio 21.1**, where earlier builds failed every frame. Nobody has compared
-> that output with the GPU's yet, and nothing here has been used on a show.
+> expose all of v0.1.0's 48 controls (v0.6.3 has 54) with nothing truncated, render, and hold a
+> factory preset through live rendering. **DaVinci Resolve Studio 21.0.2.4** lists the OpenFX
+> build, which renders correctly through an independent OFX host, and from v0.6.2 both plugins
+> render as tools on the Fusion page of **Resolve Studio 21.1**, where earlier builds failed
+> every frame. Nobody has compared that output with the GPU's yet, and nothing here has been
+> used on a show.
 
 A Spirograph, as two plugins for Resolume Arena and Avenue and as an OpenFX plugin
 for DaVinci Resolve.
@@ -173,7 +174,7 @@ machine can do, and it's there because a VJ needs the sheet to clear.
 
 ## First contact
 
-Verified 2026-08-27, on **Resolume Arena 7.27.1 rev 15990**, on two machines:
+Verified 2026-08-27, the day v0.1.0 shipped, on **Resolume Arena 7.27.1 rev 15990**, on two machines:
 
 | | macOS 26.4.1 (Apple GPU) | Windows 11 x64 (Mesa llvmpipe 26.2.0) |
 | --- | --- | --- |
@@ -194,7 +195,9 @@ nothing at all about speed, because that box has no GPU.
 of them.
 
 **OpenFX**, same day: `ofxprobe`, an independent OFX host, loads both plugins,
-reports 54 parameters and renders a correct frame through the CPU renderer, and
+reports 54 parameters (OpenFX counts the page and each group as one, and a
+colour as one rather than three) and renders a correct frame through the CPU
+renderer, and
 **DaVinci Resolve Studio 21.0.2.4 lists both under a "Stoatworks" group** in its
 OpenFX library. What *hadn't* been done then was applying it to a clip inside
 Resolve and looking at the result, so the CPU renderer was proven to run and not
