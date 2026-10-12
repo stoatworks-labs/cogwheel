@@ -1,38 +1,32 @@
 # Cogwheel
 
 > **AI-assisted project.** This codebase was created with [Claude](https://claude.com/claude-code)
-> (Anthropic), directed and reviewed by a human author. The central claim — that
-> the picture is a machine rather than a curve — is not asserted but measured:
-> `cgtest --closure` walks the pen for the full number of turns the tooth counts
-> predict and fails if it does not come home, and `cgtest --beer` fails unless
-> two pens crossing transmit the *product* of what each transmits alone, which
-> is what makes ink subtractive rather than additive. Both probe the same code
-> that ships. A control sweep fails if any parameter turns out to do nothing —
-> it found one on the first run. Both plugins have since been **loaded into
-> Resolume Arena 7.27.1 on macOS and on Windows** — they register with the right
-> names, ids and categories, expose all 50 controls with nothing truncated,
-> render, and hold a factory preset through live rendering. The OpenFX build has
-> been loaded by **DaVinci Resolve Studio 21.0.2.4**, which lists both plugins in
-> its OpenFX library, and renders correctly through an independent OFX host.
-> From v0.6.2 both plugins render as tools on the Fusion page of **Resolve
-> Studio 21.1**, where earlier builds failed every frame; nobody has compared
-> that output with the GPU's, and nothing here has been used on a show.
+> (Anthropic), directed and reviewed by a human author. The big claim, that the picture is a
+> machine rather than a curve, is measured by tests that probe the same code that ships
+> (they're listed under Building and testing), and a control sweep that fails if any parameter
+> does nothing found one on its first run. Both plugins have been **loaded into Resolume Arena
+> 7.27.1 on macOS and on Windows**: they register with the right names, ids and categories,
+> expose all 50 controls with nothing truncated, render, and hold a factory preset through live
+> rendering. **DaVinci Resolve Studio 21.0.2.4** lists the OpenFX build, which renders correctly
+> through an independent OFX host, and from v0.6.2 both plugins render as tools on the Fusion
+> page of **Resolve Studio 21.1**, where earlier builds failed every frame. Nobody has compared
+> that output with the GPU's yet, and nothing here has been used on a show.
 
-A Spirograph, as two plugins for Resolume Arena/Avenue and as an OpenFX plugin
+A Spirograph, as two plugins for Resolume Arena and Avenue and as an OpenFX plugin
 for DaVinci Resolve.
 
 A toothed ring is fixed to the paper. A smaller toothed wheel rolls around
-inside it, in mesh, and a pen dropped through one of the wheel's holes is
-carried along for the ride. That is the whole machine, and everything the plugin
+inside it, in mesh, and a pen dropped through one of the wheel's holes gets
+carried along for the ride. That's the whole machine, and everything the plugin
 does falls out of it.
 
 **Video:** [What it does, in 68 seconds](https://www.youtube.com/watch?v=_epebasO_is)
 
-**Seen in the wild:** [VJPandaAU's set, cranking the pen hole live in Resolume](https://www.youtube.com/watch?v=LDlGKthrdzc) — shared with permission.
+**Seen in the wild:** [VJPandaAU's set, cranking the pen hole live in Resolume](https://www.youtube.com/watch?v=LDlGKthrdzc), shared with permission.
 
 ![The toothed ring, the wheel in mesh with it, and two pens' paths in red and blue on paper](docs/hero.png)
 
-<sub>The toothed ring, the wheel in mesh with it, and two pens' paths in red and blue on paper — rendered by the plugin's own offline harness (`cgtest`), not captured from Resolume.</sub>
+<sub>The toothed ring, the wheel in mesh with it, and two pens' paths in red and blue on paper. Rendered by the plugin's own offline harness (`cgtest`) rather than captured from Resolume.</sub>
 
 <!-- downloads:start -->
 
@@ -81,10 +75,9 @@ macOS builds are signed and notarised and open normally. The Windows builds are 
 
 **Nothing here evaluates a hypotrochoid.**
 
-There is a ring with N teeth and a wheel with n teeth, and because gears mesh,
-the wheel cannot roll by anything other than a whole tooth at a time. So every
-property of the figure follows from those two integers alone — and, crucially,
-the operator can see *why*:
+There's a ring with N teeth and a wheel with n teeth, and because gears mesh,
+the wheel can only roll by a whole tooth at a time. So every property of the
+figure follows from those two integers alone, and you can see *why*:
 
 | Ring | Wheel | Common factor | Lobes | Turns to close |
 | ---: | ----: | ------------: | ----: | -------------: |
@@ -92,61 +85,62 @@ the operator can see *why*:
 |   96 |    52 |             4 |    24 |             13 |
 |   96 |    31 |             1 |    96 |             31 |
 
-96 and 32 mesh three to one, so that figure is a deltoid and it is finished
+96 and 32 mesh three to one, so that figure is a deltoid and it's finished
 after a single turn. Move one tooth to 31 and nothing divides any more: the same
 machine now takes thirty-one turns and lays down ninety-six lobes. A plugin with
 a floating-point "ratio" control makes both of those shapes and explains
-neither. The Ring Teeth and Wheel Teeth controls report the lobe count and the
+neither. The Ring Teeth and Wheel Teeth controls tell you the lobe count and the
 turn count as you drag them.
 
 Three more things fall out of taking the machine seriously:
 
-**The gears slip, and that is what keeps the drawing alive.** A closed figure
-retraces its own line for ever — that is not a bug, it is what a Spirograph *is*,
-and about ten seconds in nothing moves again. The answer is not a fudge: a real
-plastic Spirograph's mesh is not quite true, and a mesh half a percent out
+**The gears slip, and that's what keeps the drawing alive.** A closed figure
+retraces its own line forever, because that's what a Spirograph does, and about
+ten seconds in nothing moves again. The way out comes from the toy itself: a real
+plastic Spirograph's mesh isn't quite true, and a mesh half a percent out
 precesses the figure instead of closing it. `Creep` is that mesh. `Skip` is the
-jumped tooth that ruins a drawing, which is the other thing real ones do.
+jumped tooth that ruins a drawing, which is the other thing real ones do (usually
+just as it was getting good).
 
-**Ink is subtractive.** The sheet accumulates optical density and what you see is
-the paper through it — `paper * exp(-density)`. So a second pen crossing the
+**Ink is subtractive.** The sheet builds up optical density and what you see is
+the paper through it, `paper * exp(-density)`. So a second pen crossing the
 first gives the product of the two transmissions, which is the muddy near-black
 it is on the table and which no amount of additive blending can produce. A pen
 that lingers lays down more. And because the buffer never held a colour, you can
 change the paper, the palette or the pen mid-drawing without anything already on
-the sheet being wrong.
+the sheet going wrong.
 
 **A drawing is a stack of figures.** When one closes you lift the pen, move to
-another hole, change the pen and draw the next on top — which is how the
-multicoloured Spirograph drawing everybody remembers is actually made. That is
+another hole, change the pen and draw the next on top, which is how the
+multicoloured Spirograph drawing everybody remembers actually got made. That's
 `Layers`. Or you never lift it at all: `On Closing → Keep Going` makes the
 closure no event whatsoever, and the figure goes on precessing for as long as
 the crank turns. Or you let the fade decide: `Unless Faded` closes a figure
 only if it was drawn inside the `Fade` time, so with one fade setting the quick
 wheels stack and the slow ones keep going.
 
-If you are ever tempted to draw a spirograph, stop: either it already falls out
-of the machine, or the machine is wrong somewhere and that is the bug.
+If you're ever tempted to draw a spirograph, stop: either it already falls out
+of the machine, or the machine is wrong somewhere and that's the bug.
 
 ## Two pens, and two of everything else
 
 A real Spirograph came with ballpoint refills, and a ballpoint's ball rolls: it
 delivers ink per unit of **distance**, so a line is the same darkness however
 fast your hand moved. A fibre tip feeds by capillary action, per unit of
-**time**, so it blooms wherever the pen slows down — which at a cusp is a great
-deal. `Pen Type` is that choice, and both go through the same closed form; the
+**time**, so it blooms wherever the pen slows down, which at a cusp is a lot.
+`Pen Type` is that choice, and both go through the same closed form; the
 only difference is whether a step's quantum of ink is `Flow × dt` or
 `Flow × length`. Nothing anywhere computes a speed or divides by one.
 
-`Blend` is how new ink meets the ink already on the sheet, and each entry is a
-real thing you can put in the pen hole: transparent ink, which is what every
-pen in the box does and the only one Beer's law describes; opaque pigment — a
-paint marker — that hides what is under it and never darkens beyond its own
+`Blend` is how new ink meets the ink already on the sheet, and each entry is
+something you could actually put in the pen hole: transparent ink, which is what
+every pen in the box does and the only one Beer's law describes; opaque pigment
+(a paint marker) that hides what's under it and never darkens beyond its own
 colour; and a pen that lifts ink off. `cgtest --blend` holds the last two to an
 identity as parameter-free as the one for the first.
 
 `Show Gears` puts the ring, the wheel, the arm and the pen on screen, with the
-real tooth counts, so they can be counted.
+real tooth counts, so you can count them.
 
 ## The two builds
 
@@ -155,27 +149,27 @@ real tooth counts, so they can be counted.
 | **Cogwheel** | A source. Draws on its own sheet of paper. |
 | **Cogwheel Ink** | An effect. The clip can be the paper the pen draws on, the ink the pen picks up, or both. |
 
-Honest expectation for **Ink from Clip**: excellent on footage with large areas
-of strong colour, and mud on anything busy. That is what a pen does to a
-picture, not a setting.
+What to expect from **Ink from Clip**: excellent on footage with large areas
+of strong colour, and mud on anything busy. That's what a pen does to a
+picture, and it isn't a setting you've got wrong.
 
-Ink can only ever darken paper, so a pale line on a dark ground is not something
-the machine can make. `Print → Negative` is the honest route to it: a drawing,
-photographed and printed the other way up.
+Ink can only ever darken paper, so a pale line on a dark ground isn't something
+the machine can make. `Print → Negative` gets you there without cheating: a
+drawing, photographed and printed the other way up.
 
 ## Presets
 
-Eight, and each is a recognisable *drawing* rather than a set of slider
-positions — which is only possible because the gear train is two integers.
+Eight of them, and each is a recognisable *drawing* rather than a set of slider
+positions, which only works because the gear train is two integers.
 `Classic Rosette` is 96/52 with four pens through four holes. `Three Lobes` is
 96/32 with the pen near the rim and the creep turned up, so the deltoid walks
 round the sheet as it goes. `Slipping Gear` is the ruined drawing, on purpose.
 `Show the Gears` is the machine, cranked slowly, with the overlay on.
 
-`Wet Trail` is the one preset that is dishonest about the machine, and it says
-so: a two-second `Fade` turns the accumulating sheet into a moving line. Paper
-does not fade. Fade is the only control in the plugin that is not something the
-machine can do, and it is there because a VJ needs the sheet to clear.
+`Wet Trail` is the one preset that cheats on the machine, and it owns up to it:
+a two-second `Fade` turns the accumulating sheet into a moving line. Paper
+doesn't fade. Fade is the only control in the plugin that isn't something the
+machine can do, and it's there because a VJ needs the sheet to clear.
 
 ## First contact
 
@@ -190,32 +184,32 @@ Verified 2026-08-27, on **Resolume Arena 7.27.1 rev 15990**, on two machines:
 | presets | ✅ applied, **held** through live rendering, dropped to Custom on a real edit | ✅ |
 | clean | ✅ no complaint in Arena's log | ✅ no complaint, and no crash dump |
 
-The Windows half matters more than it looks: llvmpipe's GLSL compiler is not
-macOS's, so the shaders passing there is real evidence about the shader source
+The Windows half matters more than it looks: llvmpipe's GLSL compiler isn't
+macOS's, so the shaders passing there is proper evidence about the shader source
 rather than about one vendor's driver. It says nothing about NVIDIA or AMD, and
-nothing at all about speed — that box has no GPU.
+nothing at all about speed, because that box has no GPU.
 
-`Cogwheel Ink` was additionally driven over a stock Gradient source on macOS with
+`Cogwheel Ink` was also driven over a stock Gradient source on macOS with
 `Ink from Clip` on: the pen picked up the clip's colours and drew the figure out
 of them.
 
-**OpenFX**, same day: `ofxprobe` — an independent OFX host — loads both plugins,
+**OpenFX**, same day: `ofxprobe`, an independent OFX host, loads both plugins,
 reports 54 parameters and renders a correct frame through the CPU renderer, and
 **DaVinci Resolve Studio 21.0.2.4 lists both under a "Stoatworks" group** in its
-OpenFX library. What had *not* been done then is applying it to a clip inside
+OpenFX library. What *hadn't* been done then was applying it to a clip inside
 Resolve and looking at the result, so the CPU renderer was proven to run and not
 yet proven to match the GPU one.
 
 **Resolve's Fusion page**, 2026-10-04, Resolve Studio 21.1 on macOS: from v0.6.2
-both plugins render there as tools — Cogwheel as a generator whose frames move,
+both plugins render there as tools, Cogwheel as a generator whose frames move and
 Cogwheel Ink fed by a MediaIn. Earlier builds failed every render there (below).
-The output there has still not been compared with the GPU's.
+The output there still hasn't been compared with the GPU's.
 
 ⚠️ **On macOS the bundle must go in `/Library/OFX/Plugins`, which needs an
-administrator.** `~/Library/OFX/Plugins` is **silently ignored** — Resolve
-reports nothing, the plugin simply never appears, and the OpenFX library looks
-exactly as it would if the plugin were broken. That is how this was first
-mis-diagnosed. `OFX_PLUGIN_PATH` works as an override if you cannot write to
+administrator.** `~/Library/OFX/Plugins` is **silently ignored**: Resolve
+reports nothing, the plugin just never appears, and the OpenFX library looks
+just as it would if the plugin were broken. That's how this got misdiagnosed the
+first time. `OFX_PLUGIN_PATH` works as an override if you can't write to
 `/Library`.
 
 **Resolve's Fusion page reports the frame rate on the effect but not on its clips.**
@@ -227,7 +221,7 @@ host reports no rate at all.
 
 ## Building and testing
 
-Requires CMake 3.15+ and a C++17 compiler. The FFGL SDK is a submodule.
+You'll need CMake 3.15+ and a C++17 compiler. The FFGL SDK is a submodule.
 
 ```
 git clone --recursive https://github.com/stoatworks-labs/cogwheel
@@ -279,11 +273,11 @@ Render a frame offline:
 
 ## Diagnostics
 
-`~/Library/Logs/cogwheel/cogwheel.YYYY-MM-DD.log` — a log file and nothing else:
-no crash handler, because a plugin loaded into Resolume has no business
+`~/Library/Logs/cogwheel/cogwheel.YYYY-MM-DD.log` is a log file and nothing else.
+There's no crash handler, because a plugin loaded into Resolume has no business
 installing a process-wide signal handler. It covers the failures that all look
-identical from outside ("it does nothing"): a shader that will not compile, a
-sheet that would not allocate, and a preset dropping back to Custom.
+the same from outside ("it does nothing"): a shader that won't compile, a
+sheet that wouldn't allocate, and a preset dropping back to Custom.
 
 ## Trademark
 

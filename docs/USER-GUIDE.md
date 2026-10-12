@@ -1,31 +1,31 @@
 # Cogwheel user guide
 
-Cogwheel is **a Spirograph**, as two plugins for Resolume Arena and Avenue — and again as an
-OpenFX bundle for Resolve, Vegas, Nuke and Natron.
+Cogwheel is a Spirograph, as two plugins for Resolume Arena and Avenue and as an OpenFX bundle
+for Resolve, Vegas, Nuke and Natron.
 
 A toothed ring is pinned to the paper. A smaller toothed wheel rolls around inside it, in mesh,
-and a pen dropped through one of the wheel's holes is carried along for the ride. **Nothing here
+and a pen dropped through one of the wheel's holes gets carried along for the ride. **Nothing here
 evaluates a curve.** Set the two tooth counts and the figure follows.
 
 ![The machine, drawing](hero.png)
 
 > **Before you rely on this:** the central claims are measured rather than asserted. The pen is
-> walked for the full number of turns the tooth counts predict and the test fails if it does not
-> come home; a second fails unless two pens crossing transmit the *product* of what each transmits
-> alone, which is what makes ink subtractive rather than additive. Both probe the same code that
-> ships, and a control sweep fails if any parameter turns out to do nothing.
+> walked for the full number of turns the tooth counts predict, and the test fails if it doesn't
+> come home; a second fails unless two pens crossing transmit the *product* of what each
+> transmits alone, which is what makes ink subtractive rather than additive. Both probe the same
+> code that ships, and a control sweep fails if any parameter turns out to do nothing.
 >
-> **Both plugins have been loaded and run in Resolume Arena 7.27.1, on macOS and on Windows** —
-> they register with the right names and categories, expose all 50 controls with nothing
+> **Both plugins have been loaded and run in Resolume Arena 7.27.1, on macOS and on Windows.**
+> They register with the right names and categories, expose all 50 controls with nothing
 > truncated, render, and hold a factory preset through live rendering. **DaVinci Resolve Studio
 > 21.0.2.4 lists the OpenFX build**, it renders correctly in an independent OFX host, and from
-> v0.6.2 both plugins render as tools on the Fusion page of Resolve Studio 21.1. What is still
+> v0.6.2 both plugins render as tools on the Fusion page of Resolve Studio 21.1. What's still
 > unconfirmed is narrower: nobody has compared its output inside Resolve with the GPU's, so its
-> CPU renderer is proven to run and not yet proven to match the GPU one pixel for pixel.
+> CPU renderer is proven to run but not yet proven to match the GPU one pixel for pixel.
 >
-> Released at **v0.6.3**, which puts Export XML's files in Documents wherever Windows has moved
-> it, OneDrive included, and starts Load XML's value in that folder. v0.6.2 fixed two things in
-> the OpenFX build: every render on Resolve's Fusion page failed (and the generator now animates
+> This is **v0.6.3**, which puts Export XML's files in Documents wherever Windows has moved it,
+> OneDrive included, and starts Load XML's value in that folder. v0.6.2 fixed two things in the
+> OpenFX build: every render on Resolve's Fusion page failed (and the generator now animates
 > there), and choosing a factory preset crashed the host.
 >
 > This codebase was created with AI assistance, directed and reviewed by a human author.
@@ -42,15 +42,15 @@ plugin models.
 - **Cogwheel Ink** (an effect) can use the clip below as the paper the pen draws on, as the ink
   the pen picks up, or both.
 
-Both declare the same parameters, so a composition can be moved between them.
+Both declare the same parameters, so you can move a composition between them.
 
 ---
 
 ## Start from a preset
 
-The **Preset** dropdown is at the bottom of the list. Eight of them, and each is a recognisable
-*drawing* rather than a set of slider positions — which is only possible because the gear train is
-two integers.
+The **Preset** dropdown is at the bottom of the list. There are eight, and each is a recognisable
+*drawing* rather than a set of slider positions, which only works because the gear train is two
+integers.
 
 ![The eight presets](presets.png)
 
@@ -67,66 +67,65 @@ two integers.
 
 ### Keeping a look of your own
 
-The presets are fixed — Resolume gives a plugin no way to add an entry to that dropdown
-while it is running, or to remember one between sessions. So there is no "save preset"
-button, and there cannot be one.
+The presets are fixed. Resolume gives a plugin no way to add an entry to that dropdown while it's
+running, or to remember one between sessions, so there's no "save preset" button, and there
+can't be one.
 
 What there is instead is a pair of controls next to the dropdown. **Export XML** writes every
 control's current value to a timestamped file in a `cogwheel` folder in your Documents:
 
     ~/Documents/cogwheel/cogwheel-20260901-152822.xml
 
-On Windows that is your Documents folder wherever Windows has put it. If OneDrive backs it up,
-that is `OneDrive\Documents\cogwheel`, not a second Documents folder beside it — the folder
+On Windows that's your Documents folder wherever Windows has put it. If OneDrive backs it up,
+that's `OneDrive\Documents\cogwheel`, not a second Documents folder beside it: the folder
 Explorer opens when you click Documents. (Before v0.6.3 it was always `C:\Users\<you>\Documents`,
-which on a OneDrive machine is not the one you look in.)
+which on a OneDrive machine isn't the one you look in.)
 
 Each line carries both the number the plugin stores and the readable version of it, so the
-file is worth reading as well as keeping:
+file's worth reading as well as keeping:
 
 ```xml
 <parameter id="1" name="Ring Teeth" type="integer" value="96.000000" display="96t - 24 lobes"/>
 <parameter id="8" name="Speed" type="standard" value="0.737000" display="1.63 turns/s"/>
 ```
 
-**Load XML**, new in v0.3.0, reads one back. It is a file picker, and from v0.6.3 its value
-starts out as the folder Export XML writes to rather than empty. Choose a file and every control the file names is set from it, the sheet is wiped for the new machine, and the Preset
-dropdown drops to **Custom**, because the file is now the truth. The row next to it says
-`loaded`, `remembered`, or `failed - see log`. The full path — and any row the plugin could not
-place — goes to the diagnostics log, because sixteen characters of parameter display is not room
-for one.
+**Load XML**, new in v0.3.0, reads one back. It's a file picker, and from v0.6.3 its value
+starts out as the folder Export XML writes to rather than empty. Choose a file and every control
+the file names is set from it, the sheet is wiped for the new machine, and the Preset dropdown
+drops to **Custom**, because the file is now the truth. The row next to it says `loaded`,
+`remembered`, or `failed - see log`. The full path, and any row the plugin couldn't place, goes
+to the diagnostics log, because sixteen characters of parameter display isn't room for one.
 
 Four things worth knowing:
 
 - **Rows are matched by name, never by number.** A file written by the source loads into the
   effect and back, and a file from an earlier release still loads even though the controls have
-  been renumbered since. A row naming a control that does not exist is skipped and logged.
+  been renumbered since. A row naming a control that doesn't exist is skipped and logged.
 - **Choosing the same file a second time does nothing.** A file is applied when the path
-  *changes*, so a host that restates the same path every frame does not wipe the sheet every
-  frame. To re-apply a file you have edited, pick a different one and then it again.
+  *changes*, so a host that restates the same path every frame doesn't wipe the sheet every
+  frame. To re-apply a file you've edited, pick a different one and then pick it again.
 - **A loaded file is held the way a preset is.** Resolume goes on pushing the slider values it
   believed before the load; the plugin recognises those as the host repeating itself rather
-  than as you editing, and keeps the file's values until you actually move something.
-- **Reopening a composition does not re-read the file**, since v0.5.1. Resolume restores your
+  than you editing, and keeps the file's values until you actually move something.
+- **Reopening a composition doesn't re-read the file**, since v0.5.1. Resolume restores your
   saved parameters and then hands the plugin back the path that was in the picker; re-reading
   it there would put the file's values over the settings you saved, which is what #22 reported.
   A path arriving before the first frame, on controls that have already moved off their
   defaults, is the host restoring rather than you choosing, so the path is remembered and the
-  row says `remembered`. Your composition wins, and picking a file yourself is unaffected.
+  row says `remembered`. Your composition wins, and picking a file yourself works as before.
 
-The About block and the buttons are not settings and are not loaded, and a hand-edited value
+The About block and the buttons aren't settings and aren't loaded, and a hand-edited value
 outside a control's range is clamped to the range rather than applied.
 
-Moving any control a preset covers drops the dropdown back to **Custom**. That is the preset
+Moving any control a preset covers drops the dropdown back to **Custom**. That's the preset
 letting go, not an error.
 
 ---
 
 ## The two numbers that matter
 
-**Ring Teeth** and **Wheel Teeth** are the whole machine. Because gears mesh, the wheel cannot
-roll by anything other than a whole tooth, so everything about the figure follows from those two
-integers:
+**Ring Teeth** and **Wheel Teeth** are the whole machine. Because gears mesh, the wheel can only
+roll by a whole tooth, so everything about the figure follows from those two integers:
 
 | Ring | Wheel | Lobes | Turns to close |
 | ---: | ----: | ----: | -------------: |
@@ -134,11 +133,11 @@ integers:
 | 96 | 52 | 24 | 13 |
 | 96 | 31 | 96 | 31 |
 
-Drag either control and Resolume shows you the answer before you let go — the Ring reports how
-many lobes you are about to get, and the Wheel reports how many turns it will take to close.
+Drag either control and Resolume shows you the answer before you let go: the Ring reports how
+many lobes you're about to get, and the Wheel reports how many turns it'll take to close.
 
 **Snap to Set** restricts both to tooth counts a real Spirograph set carries. Leave it on unless
-you are hunting for something specific; the figures people recognise are the ones those particular
+you're hunting for something specific; the figures people recognise are the ones those particular
 integers make.
 
 **Pen Hole** is which hole in the wheel the pen sits in. Near the rim gives long thin lobes; near
@@ -148,72 +147,72 @@ positions, which is what a real wheel offers.
 **Mesh** decides whether the wheel runs round the inside of the ring (a rosette) or the outside
 (a petal shape).
 
-A wheel as big as the ring, or bigger, cannot run round the *inside* of it — there is nowhere for
-it to go — so with Mesh on *Inside* and 100 wheel teeth against 96 ring teeth nothing is drawn.
-The two controls say so as you drag them: the Ring reads `too small` and the Wheel reads
-`too big`. Set Mesh to *Outside*, where a big wheel is fine, or choose a smaller wheel.
+A wheel as big as the ring, or bigger, can't run round the *inside* of it (there's nowhere for it
+to go), so with Mesh on *Inside* and 100 wheel teeth against 96 ring teeth nothing is drawn. The
+two controls say so as you drag them: the Ring reads `too small` and the Wheel reads `too big`.
+Set Mesh to *Outside*, where a big wheel is fine, or choose a smaller wheel.
 
 ---
 
 ## Why a drawing stops, and what to do about it
 
-A closed figure retraces its own line for ever. That is not a bug and it is not something tuning
-fixes — it is what a Spirograph *is*. A drawing is finished when it is finished, and about ten
-seconds later nothing on screen is moving.
+A closed figure retraces its own line forever. That's what a Spirograph does, and no amount of
+tuning changes it. A drawing is finished when it's finished, and about ten seconds later nothing
+on screen is moving.
 
 There are three ways out, and all three are things a person at the table actually does:
 
-- **Creep** — the mesh is not quite true. A fraction of a tooth per turn precesses the figure so
-  it never quite lands on itself, and the drawing keeps growing. This is on by default.
-- **Skip** — a jumped tooth. Discrete, startling, and the classic way a real drawing is ruined.
+- **Creep:** the mesh isn't quite true. A fraction of a tooth per turn precesses the figure so it
+  never quite lands on itself, and the drawing keeps growing. It's on by default.
+- **Skip:** a jumped tooth. Sudden, startling, and the classic way a real drawing gets ruined.
   **Skip Size** is how far it jumps.
-- **Layers** — when a figure closes, lift the pen, move to another hole, change the pen and draw
-  the next one on top. That is how the multicoloured Spirograph drawing everybody remembers is
-  actually made. **On Closing** decides what moves; **Wipe Sheet** starts a fresh sheet when the
-  whole stack is done.
+- **Layers:** when a figure closes, lift the pen, move to another hole, change the pen and draw
+  the next one on top. That's how the multicoloured Spirograph drawing everybody remembers
+  actually got made. **On Closing** decides what moves; **Wipe Sheet** starts a fresh sheet when
+  the whole stack is done.
 
 If the picture has gone still, one of those three is off.
 
-There is a fourth way, new in v0.5.0, and it is the opposite of the other three: **On Closing →
+There's a fourth way, new in v0.5.0, and it's the opposite of the other three: **On Closing →
 Keep Going**. When the figure comes home nothing happens at all. The pen stays down, the same pen
 in the same hole carries on round, and with **Creep** on the figure keeps precessing for as long
-as the crank turns — the growing rosette, kept. A closure is not an event under Keep Going:
-nothing is counted, nothing is wiped, **Layers** has nothing to do (it reads `keeps going` to say
-so), and **Fade by Figure** has nothing to settle. With the ordinary **Fade** the drawing reaches
-whatever balance the fade rate sets and stays there.
+as the crank turns: the growing rosette, kept. A closure isn't an event under Keep Going. Nothing
+is counted, nothing is wiped, **Layers** has nothing to do (it reads `keeps going` to say so), and
+**Fade by Figure** has nothing to settle. With the ordinary **Fade** the drawing reaches whatever
+balance the fade rate sets and stays there.
 
-A stack of one **Layer** also keeps the pen down, but it still *counts* each closure — which with
-Fade by Figure on settles the drawing so far and starts it fading. Keep Going does not.
+A stack of one **Layer** also keeps the pen down, but it still *counts* each closure, which with
+Fade by Figure on settles the drawing so far and starts it fading. Keep Going doesn't.
 
-Selecting Keep Going holds **the figure that is on the paper**, since v0.5.1. Which wheel and
-which hole a figure uses is worked out from the seed, the layer number and On Closing itself, so
+Selecting Keep Going holds **the figure that's on the paper**, since v0.5.1. Which wheel and which
+hole a figure uses is worked out from the seed, the layer number and On Closing itself, so
 switching to Keep Going part-way through a run used to lose two of those and fall back to what
-you originally threaded — a different figure, on the frame you asked it to stop changing (#24).
-It now latches the layer and the mode that produced what you are looking at. Switching back off
-hands the drawing to the live sequence again at the next closure.
+you originally threaded: a different figure, on the very frame you'd asked it to stop changing
+(#24). It now latches the layer and the mode that produced what you're looking at. Switching back
+off hands the drawing to the live sequence again at the next closure.
 
-There is a fifth, new in v0.6.0, and it is not a way out so much as a way of letting the drawing
-choose: **Unless Faded**, the switch under On Closing. With it on, a figure closes only if it was
-drawn inside the **Fade** time. One that took longer has faded from behind the pen by the time
-the pen comes home — there is no whole figure on the paper to close — so it keeps going instead,
-exactly as if On Closing said Keep Going, and is asked again the next time round. One that was
-quicker closes as On Closing says. So with a single fade setting the quick wheels stack and the
-slow ones keep going: at the default crank a 96/32 comes home in two seconds and stacks under a
-ten-second fade, while a 96/31 takes a minute and never does. Turn Fade up past a figure's lap
-and it closes the next time it comes home; turn it down and the stack stops growing. The readout
-next to the switch says the number it is working to — `longer than 12s` — so you can see which
-figures will close without doing the sum.
+There's a fifth, new in v0.6.0, and it's less a way out than a way of letting the drawing choose:
+**Unless Faded**, the switch under On Closing. With it on, a figure closes only if it was drawn
+inside the **Fade** time. One that took longer has faded from behind the pen by the time the pen
+comes home, so there's no whole figure on the paper to close; it keeps going instead, just as if
+On Closing said Keep Going, and gets asked again the next time round. One that was quicker closes
+as On Closing says. So with a single fade setting the quick wheels stack and the slow ones keep
+going: at the default crank a 96/32 comes home in two seconds and stacks under a ten-second fade,
+while a 96/31 takes a minute and never does. Turn Fade up past a figure's lap and it closes the
+next time it comes home; turn it down and the stack stops growing. The readout next to the switch
+shows the number it's working to (`longer than 12s`), so you can see which figures will close
+without doing the sum.
 
 It needs **Fade** above zero: with no fade nothing has faded and every figure closes, and the
 readout says `no fade: closes`. The rule is the same under **Fade by Figure**, where the figure
-being drawn does not literally fade — a figure slower than the fade keeps going in both modes,
-so the switch means one thing whichever fade you are using. It came out of #25, which asked
-exactly this question as a thought experiment.
+being drawn doesn't literally fade. A figure slower than the fade keeps going in both modes, so
+the switch means one thing whichever fade you're using. It came out of #25, which asked this very
+question as a thought experiment.
 
 ![Unless Faded, off and on](unless-faded.png)
 
 The same wheel, the same two-second fade, the same frame. On the left the figure took longer
-than the fade to draw, closed anyway, and the pen has lifted twice — red, then blue, then green,
+than the fade to draw, closed anyway, and the pen has lifted twice (red, then blue, then green),
 each fading behind the next. On the right it kept going: the same red pen, never lifted, the
 figure precessing under Creep with the fade following it round.
 
@@ -221,91 +220,91 @@ figure precessing under Creep with the fade following it round.
 
 ## The pen
 
-**Pen Type** is a real distinction between two real classes of pen, not a look.
+**Pen Type** picks between two kinds of pen that behave differently on paper.
 
 - A **ballpoint**'s ball rolls, so it lays down ink per unit of *distance*: a line is the same
-  darkness however fast your hand moved. That is what came in the box, and it is the default.
+  darkness however fast your hand moved. That's what came in the box, and it's the default.
 - A **fibre tip** feeds by capillary action, per unit of *time*, so it blooms wherever the pen
-  slows down — which at a cusp is a great deal.
+  slows down, which at a cusp is a lot.
 
-**Blend** is how new ink meets the ink already on the sheet, and each entry is a real thing you
-can put in the pen hole rather than a blend mode off a menu:
+**Blend** is how new ink meets the ink already on the sheet, and each entry is something you
+could put in the pen hole rather than a blend mode off a menu:
 
-- *Multiply* is transparent ink — what every pen in the box does. Absorptions add, crossings
-  darken, and red over blue is the near-black it is on the table. This is the default and the
-  only one the next section describes.
-- *Cover* is opaque pigment — a paint marker. New ink hides what is under it, a crossing is the
+- *Multiply* is transparent ink, which is what every pen in the box does. Absorptions add,
+  crossings darken, and red over blue is the near-black it is on the table. It's the default and
+  the only one the next section describes.
+- *Cover* is opaque pigment, a paint marker. New ink hides what's under it, a crossing is the
   colour of whichever pen came second, and a pen never darkens beyond its own colour however
   often it crosses itself. Set **Pens** to *Ink Colour* and the **Ink** sliders to white, or to
   the paper colour, and Cover is white-out.
 - *Lift* is an eraser in the pen hole. The pen's colour is ignored and the figure is drawn in
-  whatever was underneath before the ink was laid — which on a clean sheet is nothing at all.
+  whatever was underneath before the ink went down, which on a clean sheet is nothing at all.
 
-If what you wanted was *add* — a line that brightens the sheet — that is **Print → Negative**,
-because ink cannot add light. All three compose exactly with **Fade by Figure**, and a preset sets
+If what you wanted was *add*, a line that brightens the sheet, that's **Print → Negative**,
+because ink can't add light. All three compose exactly with **Fade by Figure**, and a preset sets
 Blend along with the rest of the pen.
 
-**Flow** is how dark the line is. It is multiplied by the nib's width internally, so widening the
-nib does not lighten the line — a broader pen delivers proportionally more ink, which is what
-makes it broader rather than blurrier.
+**Flow** is how dark the line is. It's multiplied by the nib's width internally, so widening the
+nib doesn't lighten the line: a broader pen delivers proportionally more ink, which is what makes
+it broader rather than blurrier.
 
-**Nib** is the line's width, as a fraction of the sheet, so it is the same line at every output
+**Nib** is the line's width, as a fraction of the sheet, so it's the same line at every output
 resolution. **Pressure** is how much a pressed nib spreads.
 
-**Pens** chooses what the layers are drawn with — *Four Pens* is the set that came in the box.
+**Pens** chooses what the layers are drawn with. *Four Pens* is the set that came in the box.
 *Ink Colour* uses the **Ink Red**, **Ink Green** and **Ink Blue** sliders instead.
 
 ---
 
 ## Ink is subtractive, and what follows from it
 
-The sheet accumulates optical density, and what you see is the paper through it. A second pen
-crossing the first therefore gives the *product* of the two transmissions — the muddy near-black
-it is on the table — rather than the bright sum an additive renderer would produce. A pen that
-lingers lays down more.
+The sheet builds up optical density, and what you see is the paper through it. So a second pen
+crossing the first gives the *product* of the two transmissions (the muddy near-black it is on
+the table) rather than the bright sum an additive renderer would make. A pen that lingers lays
+down more.
 
-Two consequences worth knowing:
+A few consequences worth knowing:
 
-- **Changing the paper colour or the palette does not spoil what is already drawn.** The sheet
+- **Changing the paper colour or the palette doesn't spoil what's already drawn.** The sheet
   never held a colour to be wrong about.
-- **Ink can only ever darken paper.** A pale line on a dark ground is not something the machine
-  can make. **Print → Negative** is the honest route to it: a drawing, photographed and printed
-  the other way up.
+- **Ink can only ever darken paper.** A pale line on a dark ground isn't something the machine
+  can make. **Print → Negative** gets you there without cheating: a drawing, photographed and
+  printed the other way up.
 - **Black paper hides the drawing.** Turn the **Paper** sliders down to black and the ink has
-  nothing to darken, so the whole sheet goes black — which is Beer's law, not a fault. If what
-  you wanted was to key the paper out and composite the line over other layers, that is what
+  nothing to darken, so the whole sheet goes black. That's Beer's law, not a fault. If what you
+  wanted was to key the paper out and composite the line over other layers, that's what
   **Clear Paper** is for.
 
 **Clear Paper** takes the paper away altogether. The output is the ink on a clear sheet, with an
 alpha channel: composite it over anything in Resolume and the line shows in its own colour, a
-black pen darkens whatever is behind it exactly as ink would, and over white you get precisely the
-drawing on white paper. The paper colour, **Grain** and **Paper from Clip** do not apply while it
-is on, because there is no paper. On the effect the ink goes over the clip and the clip keeps its
-own alpha.
+black pen darkens whatever's behind it just as ink would, and over white you get precisely the
+drawing on white paper. The paper colour, **Grain** and **Paper from Clip** don't apply while
+it's on, because there's no paper. On the effect the ink goes over the clip and the clip keeps
+its own alpha.
 
-**Grain** is how much of the paper's tooth you can see. **Tooth** is a different question — how
+**Grain** is how much of the paper's tooth you can see. **Tooth** is a different question: how
 unevenly the sheet *takes* ink. Smooth board takes ink evenly and shows no grain; cartridge does
 both.
 
-**Fade** is the one control in the plugin that is not something the machine can do. A drawing does
-not fade. It is here because a VJ needs the sheet to clear, and at zero it does not fade at all,
-which is what paper does.
+**Fade** is the one control in the plugin that isn't something the machine can do. A drawing
+doesn't fade. It's here because a VJ needs the sheet to clear, and at zero it doesn't fade at
+all, which is what paper does.
 
-**Fade by Figure** decides what the fade acts on. Off — which is how it has always behaved — the
-fade acts on the sheet, every frame. Ink laid down at the start of a figure has therefore been
-fading for longer than ink laid down at its head, so the line carries a gradient along its own
-length: it is palest where the pen started and darkest where the pen is now. On, the figure being
-drawn does not fade at all. It joins the drawing at the moment it closes, and fades from then on
-as one object, so a figure is a single even weight of line and the ones behind it lift away whole.
+**Fade by Figure** decides what the fade acts on. Off (which is how it's always behaved) the fade
+acts on the sheet, every frame. Ink laid down at the start of a figure has therefore been fading
+for longer than ink laid down at its head, so the line carries a gradient along its own length:
+it's palest where the pen started and darkest where the pen is now. On, the figure being drawn
+doesn't fade at all. It joins the drawing at the moment it closes, and fades from then on as one
+object, so a figure is a single even weight of line and the ones behind it lift away whole.
 
-It needs **Fade** above zero to mean anything: with no fade there is nothing for it to change the
-shape of. Turning it off again does not lose anything — everything that had settled comes straight
-back onto the sheet.
+It needs **Fade** above zero to mean anything: with no fade there's nothing for it to change the
+shape of. Turning it off again doesn't lose anything, and everything that had settled comes
+straight back onto the sheet.
 
 ![Fade by Figure, off and on](fade-by-figure.png)
 
 The same machine and the same fade, at the same frame. On the left the blue figure is being drawn
-and is palest where the pen started; on the right it is one weight of line all the way round, and
+and is palest where the pen started; on the right it's one weight of line all the way round, and
 the red figure behind it has lifted away evenly rather than in a gradient.
 
 ---
@@ -315,27 +314,26 @@ the red figure behind it has lifted away evenly rather than in a gradient.
 **Speed** is turns of the ring per second.
 
 > **Renamed in v0.2.0.** This control was called **Crank** in v0.1.0. Every other plugin in
-> the range calls it Speed, so it now does too. Two things follow, and both bite silently:
+> the range calls it Speed, so now it does too. Two things follow, and both bite silently:
 > a composition saved against v0.1.0 loses whatever Crank was set to and opens at the
 > default, and any OSC or MIDI mapping pointing at "Crank" stops arriving. Re-point the
-> mapping and re-save the composition once, and that is the end of it.
+> mapping and re-save the composition once, and that's the end of it.
 
-**Sync** overrides it: choose 1, 2, 4 or 8 bars and the figure is given that many bars to
-complete, whatever this particular train's turn count is. So a thirteen-turn figure and a
-one-turn figure both land on the bar line together. That is the only sensible reading of "one
-figure per phrase".
+**Sync** overrides it: choose 1, 2, 4 or 8 bars and the figure gets that many bars to complete,
+whatever this particular train's turn count is. So a thirteen-turn figure and a one-turn figure
+both land on the bar line together. That's the only sensible reading of "one figure per phrase".
 
-**New Sheet** throws the drawing away and starts again. It sits at the very top of the
-parameter list, above every group, so it is always in reach — clearing the paper is the one
-thing you want mid-show and it used to be folded away inside the Crank group.
+**New Sheet** throws the drawing away and starts again. It sits at the very top of the parameter
+list, above every group, so it's always in reach. Clearing the paper is the one thing you want
+mid-show, and it used to be folded away inside the Crank group.
 
-**Detail** is how finely the pen path is walked — 360, 1440 or 5760 steps a turn. It is a cost
+**Detail** is how finely the pen path is walked: 360, 1440 or 5760 steps a turn. It's a cost
 dial with a visible symptom: at *Draft* a big figure is faintly polygonal. It does **not** change
 how much ink goes on the sheet.
 
 **Show Gears** puts the ring, the wheel, the arm and the pen on screen, with the real tooth
-counts, so they can be counted. It is the quickest way to explain the plugin to somebody standing
-next to you.
+counts, so you can count them. It's the quickest way to explain the plugin to somebody standing
+next to you, and somebody always asks.
 
 ---
 
@@ -343,29 +341,28 @@ next to you.
 
 Copy `Cogwheel.ofx.bundle` to:
 
-- **macOS** — `/Library/OFX/Plugins`
-- **Windows** — `C:\Program Files\Common Files\OFX\Plugins`
-- **Linux** — `/usr/OFX/Plugins`
+- **macOS:** `/Library/OFX/Plugins`
+- **Windows:** `C:\Program Files\Common Files\OFX\Plugins`
+- **Linux:** `/usr/OFX/Plugins`
 
 ⚠️ **On macOS it must be `/Library/OFX/Plugins`, which needs an administrator.** Putting it in
-`~/Library/OFX/Plugins` is **silently ignored** — the plugin simply never appears, with nothing
-logged and no error, which looks exactly like a broken plugin.
+`~/Library/OFX/Plugins` is **silently ignored**: the plugin just never appears, with nothing
+logged and no error, which looks just like a broken plugin.
 
-Two things behave differently there, both stated rather than hidden:
+Two things behave differently there:
 
-- **The OpenFX build renders on the CPU.** There is no OpenGL context to be had in an OFX host, so
-  it is built for offline rendering rather than for live use.
+- **The OpenFX build renders on the CPU.** There's no OpenGL context to be had in an OFX host, so
+  it's built for offline rendering rather than for live use.
 - **A drawing is history, so it replays from the beginning.** A linear render costs nothing per
   frame beyond that frame's own strokes. Scrubbing *backwards* through a long drawing is slow, and
-  gets slower the further in you are. There is no warm-up window that would fix this: one would
-  produce a different drawing, missing everything laid down before the window opened. Render
-  forwards.
+  gets slower the further in you are. A warm-up window wouldn't fix it, because it'd produce a
+  different drawing, missing everything laid down before the window opened. Render forwards.
 
 **Sync** works off a fixed 120 bpm in OpenFX, because OFX carries no transport tempo.
 
-**Export XML** and **Load XML** are here too. Resolve has its own presets, so they exist mainly to
-share a look with the Resolume build: a file written by either loads in the other. In an OpenFX
-host Load XML is a file path with a browse button.
+**Export XML** and **Load XML** are here too. Resolve has its own presets, so they're mainly there
+to share a look with the Resolume build: a file written by either loads in the other. In an
+OpenFX host Load XML is a file path with a browse button.
 
 ---
 
@@ -375,8 +372,7 @@ host Load XML is a file path with a browse button.
 add some **Skip**. See "Why a drawing stops" above.
 
 **Everything is solid black.** **Flow** is too high for the crank rate. A dense figure crosses
-itself constantly and every crossing darkens; *Dense Web* runs at a deliberately light flow for
-exactly this reason.
+itself constantly and every crossing darkens; *Dense Web* keeps its flow light for this reason.
 
 **The drawing is off the edge of the frame.** Check **Size** and **Centre**. Size is the ring's
 radius as a fraction of the frame height, so at 1.0 the ring exactly fills it.
@@ -390,12 +386,12 @@ back to *Multiply*.
 **Mesh** is on *Inside*. Set Mesh to *Outside* or choose a smaller wheel. The log says the same.
 
 **Everything went black when I set the paper to black.** Ink only darkens paper, so on black paper
-there is nothing to see. Use **Clear Paper** to key the sheet out, or **Print → Negative** for a
+there's nothing to see. Use **Clear Paper** to key the sheet out, or **Print → Negative** for a
 pale line on a dark ground.
 
 **Nothing appears at all in Resolume.** Check `~/Library/Logs/cogwheel/` (macOS) or
-`%LOCALAPPDATA%\cogwheel\logs\` (Windows). A shader that will not compile, or a sheet that would
-not allocate, both look like "it does nothing" from outside and both say so there.
+`%LOCALAPPDATA%\cogwheel\logs\` (Windows). A shader that won't compile and a sheet that wouldn't
+allocate both look like "it does nothing" from outside, and both say so there.
 
 **A control does nothing.** Some are conditional: **Skip Size** needs **Skip Chance** above zero,
 **On Closing** and **Pens** need **Layers** above one, **Layers** and **Pens** do nothing under
