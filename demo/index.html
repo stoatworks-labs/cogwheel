@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cogwheel — browser demo | Stoatworks Labs</title>
+    <meta name="description" content="Try the Cogwheel FFGL source and effect for Resolume in your browser: a Spirograph, as a machine rather than a curve. A toothed ring, a wheel rolling in mesh with it and a pen in one of its holes, drawing in subtractive ink on paper. The plugin's own GLSL, ported to WebGL2 unedited, fed by a JavaScript port of its gear train, crank and pens that a check in its repository holds to the plugin's C++. A demo, not the plugin." />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./vendor/kit.css" />
+    <link rel="canonical" href="https://cogwheel-demo.stoatworks-labs.com/" />
+  </head>
+  <body>
+    <main id="demo">
+      <noscript>
+        <p>
+          This demo runs the plugin's shaders and a port of its gear train in
+          your browser, so it needs JavaScript and WebGL2. The plugin itself,
+          its source and its downloads are on
+          <a href="https://github.com/stoatworks-labs/cogwheel">its repository</a>.
+        </p>
+      </noscript>
+    </main>
+
+    <script type="module" src="./plugin.js"></script>
+    <script
+      src="./vendor/support-footer.js"
+      defer
+      data-app="Cogwheel"
+      data-repo="https://github.com/stoatworks-labs/cogwheel"
+      data-note="A browser demo of the plugin's shaders over a port of its gear train. Nothing you load here leaves your machine."
+    ></script>
+  </body>
+</html>

@@ -1,0 +1,212 @@
+# The scenario both halves of the crosscheck run: printer.cpp on the plugin's
+# own C++, run.mjs on demo/plugin.js's PORT block. Each prints what it computed,
+# and crosscheck.sh requires the two printouts to be identical, byte for byte.
+#
+#   scenario NAME          a heading, printed as is
+#   reset EFFECT           the constructor's params[] (EFFECT 0 = SW Cogwheel,
+#                          1 = SW Cogwheel Ink), and a crank restarted on Seed
+#   preset N               the preset table's row N (1-based) over params[]
+#   set ID VALUE           params[ ID ] = VALUE, as a float
+#   bpm VALUE              the host's tempo, for Sync's bar modes
+#   restart                Crank::Restart( Seed ), as New Sheet does
+#   frames N SECONDS       N frames of Resolve + Crank::Advance, every step,
+#                          every run and the crank's state printed
+#   resolve                every field Resolve() fills, printed
+#   displays FULL          GetParameterDisplay for every control while each
+#                          control is swept through its range (FULL 0 sweeps
+#                          sliders in 21 steps rather than 101, and adds no
+#                          Resolve dump per line)
+#   clock T T T ...        a fresh Clock fed these host times, in seconds
+#
+# Ids are the plugin's ParamId numbers (cgtest --list prints them).
+
+scenario clock
+clock 0 0.0166666 0.05 0.05 0.0501 1.5 1.4 1.45 1.4502 2.0 2.000001
+
+scenario defaults-resolve
+reset 0
+resolve
+reset 1
+resolve
+
+scenario displays-default
+reset 0
+set 46 0
+displays 1
+
+scenario displays-effect
+reset 1
+set 46 0
+displays 0
+
+scenario displays-unsnapped
+reset 0
+set 46 0
+set 5 0
+set 6 0
+displays 0
+
+scenario displays-outside-sync
+reset 0
+set 46 0
+set 3 1
+set 7 2
+displays 0
+
+scenario displays-keepgoing-faded
+reset 0
+set 46 0
+set 15 4
+set 16 1
+set 35 0.5
+set 22 1
+displays 0
+
+scenario displays-sweep-presets
+reset 0
+preset 2
+set 46 0
+displays 0
+reset 0
+preset 3
+set 46 0
+displays 0
+reset 0
+preset 6
+set 46 0
+displays 0
+
+scenario preset-1
+reset 0
+preset 1
+frames 900 0.016666666666666666
+
+scenario preset-2
+reset 0
+preset 2
+frames 600 0.016666666666666666
+
+scenario preset-3
+reset 0
+preset 3
+frames 600 0.016666666666666666
+
+scenario preset-4
+reset 0
+preset 4
+frames 600 0.016666666666666666
+
+scenario preset-5-skip
+reset 0
+preset 5
+frames 900 0.016666666666666666
+
+scenario preset-6
+reset 0
+preset 6
+frames 300 0.016666666666666666
+
+scenario preset-7
+reset 0
+preset 7
+frames 600 0.016666666666666666
+
+scenario preset-8
+reset 0
+preset 8
+frames 600 0.016666666666666666
+
+scenario uneven-frames
+reset 0
+frames 40 0.041666666666666664
+frames 40 0.004166666666666667
+frames 40 0.03333333333333333
+frames 40 0.008333333333333333
+
+scenario keep-going-held
+reset 0
+set 15 2
+set 5 0
+set 6 0
+set 10 42
+frames 700 0.016666666666666666
+set 15 4
+frames 300 0.016666666666666666
+set 15 0
+frames 300 0.016666666666666666
+
+scenario unless-faded
+reset 0
+set 16 1
+set 35 0.8
+set 14 3
+frames 600 0.016666666666666666
+set 35 0.3
+frames 600 0.016666666666666666
+
+scenario sync-bars
+reset 0
+set 7 1
+bpm 120
+frames 400 0.016666666666666666
+set 7 4
+bpm 97.3
+frames 400 0.016666666666666666
+
+scenario wheels-off-the-set
+reset 0
+set 5 0
+set 6 0
+set 15 1
+set 14 6
+set 10 7
+set 8 0.95
+frames 600 0.016666666666666666
+
+scenario both-on-the-set
+reset 0
+set 15 2
+set 14 8
+set 10 1234
+set 8 0.9
+set 11 0
+frames 600 0.016666666666666666
+
+scenario spectrum-skip
+reset 0
+set 18 3
+set 14 16
+set 12 0.8
+set 13 5
+set 10 99
+set 8 1
+frames 300 0.016666666666666666
+
+scenario fine-and-fast
+reset 0
+set 9 2
+set 8 1
+set 1 149
+set 2 150
+set 3 1
+set 5 0
+frames 120 0.041666666666666664
+
+scenario cannot-thread
+reset 0
+set 5 0
+set 1 40
+set 2 40
+frames 20 0.016666666666666666
+set 2 60
+frames 20 0.016666666666666666
+set 3 1
+frames 60 0.016666666666666666
+
+scenario new-sheet
+reset 0
+frames 200 0.016666666666666666
+restart
+frames 200 0.016666666666666666
+set 10 3
+frames 200 0.016666666666666666

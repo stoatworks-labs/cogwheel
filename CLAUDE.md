@@ -45,6 +45,29 @@ Disable with `-DBUILD_OFX=OFF`.
 - A hostile machine leaves no NaN: `./build/cgtest --guard`
 - No dead controls: `python3 tools/sweep.py` (`--size WxH`, `--jobs N`)
 - Preset rows the right width and kind: `python3 tools/check_presets.py`
+- The demo's shaders are the plugin's: `python3 demo/tools/check_shaders.py`
+- The demo's port is the plugin's C++, to the bit: `bash demo/tools/crosscheck/crosscheck.sh`
+- The demo's frames against cgtest's (by hand; Chrome and a built cgtest):
+  `node demo/tools/crosscheck/frames.mjs --cgtest build/cgtest --port 8712`
+
+## Browser demo
+- `demo/` is the page at https://cogwheel-demo.stoatworks-labs.com (Cloudflare Worker
+  `cogwheel-demo`, a ROUTE on a proxied AAAA 100:: record -- the zone's custom domains
+  are full; deleting the record takes the page dark with a green deploy). `deploy.yml`
+  redeploys it on a push to main; by hand: `cf-run npx wrangler deploy`.
+- `demo/shaders.js` is GENERATED: after changing `source/render/Shaders.cpp` run
+  `python3 demo/tools/check_shaders.py --write`; verify.sh fails on drift, on a new piece
+  the check does not list, and on a change to how pieces are joined or paired.
+- `demo/plugin.js`'s PORT block (Gears, Wheels, Crank, Pens, Clock, Controls, Presets,
+  the constructor's defaults, GetParameterDisplay, SetFloatParameter/applyPreset) is held
+  to the C++ by `demo/tools/crosscheck/crosscheck.sh` (verify.sh runs it; needs node,
+  ~90 s): change the C++ and the port with it. It builds the printer
+  `-ffp-contract=off` and replays the plugin's own powf/logf into the port
+  (`libm_record.c`, DYLD_INSERT_LIBRARIES); four mutants must fail.
+- Sheet::Render's port (passes, blends, per-run draws, uniforms) is NOT in that check.
+  `frames.mjs` compares whole frames with cgtest; rerun it after touching either.
+- `demo/vendor/` is the shared kit: never edit it. Re-vendor from the backend's
+  `origin/main` (`git show origin/main:resolume-demo/kit/<f>`), not from a shared checkout.
 
 ## Notes
 - **The figure is what the gears do; nothing evaluates a curve.** Two integers
@@ -127,12 +150,11 @@ Disable with `-DBUILD_OFX=OFF`.
 - ⚠️ **`~/Library/OFX/Plugins` is silently ignored by Resolve.** The bundle must
   be in `/Library/OFX/Plugins` (needs admin) or reached by `OFX_PLUGIN_PATH`. An
   OFX plugin in the user path looks exactly like a broken one.
-- **No browser demo.** `wrangler.toml` does not exist, so there is nothing to
-  deploy at `cogwheel-demo.stoatworks-labs.com` and step 1c of the release
-  checklist does not apply here. There IS a release: v0.1.0 shipped 2026-08-27
-  and v0.2.0 follows it. The line that used to stand here said "no release",
-  which was true when it was written and was still being read as true a week
-  after the first tag -- it is what made a rename look free when it was not.
+- **The browser demo exists since 2026-10-28** (see Browser demo above), so step 1c
+  of the release checklist applies: a release that changes a shader, a control or
+  the machine changes the page too. The OpenFX build is not on it. (The line that
+  stood here said "no browser demo", and before that "no release"; both were true
+  when written and read as true long after.)
 - **The classic set's tooth counts in `machine/Wheels.cpp` are unverified.**
   They are what the published part lists give and have not been checked against
   a set in hand; `Ring` and `Wheel` are free integers precisely so that nothing

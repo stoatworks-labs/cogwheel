@@ -340,5 +340,42 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+head_ "Browser demo"
+# ---------------------------------------------------------------------------
+# demo/shaders.js carries copies of source/render/Shaders.cpp, and a copy that
+# drifts still draws a plausible line, so the drift has to fail here: rerun
+# `python3 demo/tools/check_shaders.py --write` after changing a shader.
+#
+# demo/plugin.js ports the machine, the mappings, the presets and the display
+# strings to JavaScript, and a port that drifts still draws a plausible
+# Spirograph, so demo/tools/crosscheck/ runs the plugin's own C++ and the port
+# through one scenario and requires the printouts to match to the bit. Needs
+# node; about a minute and a half.
+if [ -f demo/tools/check_shaders.py ]; then
+    if python3 demo/tools/check_shaders.py >/tmp/cogwheel-demo-shaders.log 2>&1; then
+        ok "the demo's shaders are the plugin's, character for character"
+    else
+        bad "the demo's shaders have drifted from source/render/Shaders.cpp -- see /tmp/cogwheel-demo-shaders.log"
+        tail -14 /tmp/cogwheel-demo-shaders.log
+    fi
+elif [ -d demo ]; then
+    bad "demo/ exists but demo/tools/check_shaders.py does not"
+fi
+
+if [ -f demo/tools/crosscheck/crosscheck.sh ]; then
+    if ! command -v node >/dev/null 2>&1; then
+        printf '   skipped: no node on this machine\n'
+    elif bash demo/tools/crosscheck/crosscheck.sh >/tmp/cogwheel-demo-crosscheck.log 2>&1; then
+        ok "the demo's port of the CPU half matches the plugin's C++ to the bit"
+        sed 's/^/   /' /tmp/cogwheel-demo-crosscheck.log
+    else
+        bad "the demo's port has drifted from the plugin's C++ -- see /tmp/cogwheel-demo-crosscheck.log"
+        tail -14 /tmp/cogwheel-demo-crosscheck.log
+    fi
+elif [ -d demo ]; then
+    bad "demo/ exists but demo/tools/crosscheck/crosscheck.sh does not"
+fi
+
+# ---------------------------------------------------------------------------
 printf '\n\033[1m%d passed, %d failed\033[0m\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

@@ -23,6 +23,8 @@ does falls out of it.
 
 **Video:** [What it does, in 68 seconds](https://www.youtube.com/watch?v=_epebasO_is)
 
+**Try it in a browser:** [cogwheel-demo.stoatworks-labs.com](https://cogwheel-demo.stoatworks-labs.com/), both plugins and every control. It's a demo, not the plugin (see [Browser demo](#browser-demo)).
+
 **Seen in the wild:** [VJPandaAU's set, cranking the pen hole live in Resolume](https://www.youtube.com/watch?v=LDlGKthrdzc), shared with permission.
 
 ![The toothed ring, the wheel in mesh with it, and two pens' paths in red and blue on paper](docs/hero.png)
@@ -171,6 +173,24 @@ round the sheet as it goes. `Slipping Gear` is the ruined drawing, on purpose.
 a two-second `Fade` turns the accumulating sheet into a moving line. Paper
 doesn't fade. Fade is the only control in the plugin that isn't something the
 machine can do, and it's there because a VJ needs the sheet to clear.
+
+## Browser demo
+
+**<https://cogwheel-demo.stoatworks-labs.com/>** has both plugins on one page, every
+control with its own name, group and default, and the eight presets. The ink, fade,
+compose and sheet shaders are the plugin's own GLSL, spliced unedited into
+`demo/shaders.js` (`demo/tools/check_shaders.py`, which `tools/verify.sh` runs, fails on
+a changed character). The machine is a JavaScript port (the gear train, the crank, the
+pens, and every control's mapping and display) and `demo/tools/crosscheck/` holds it to
+the plugin's own C++: 1.2 million lines of pen steps, mappings and displays, identical to
+the bit once the plugin's own `powf` and `logf` results are replayed into the port.
+verify.sh runs that too. Frames from the page and from `cgtest` at the same settings
+came out within one level of 255 on every pixel, in twelve cases on this Mac.
+
+It needs WebGL2 with `EXT_color_buffer_float` and `EXT_float_blend`. The integer
+controls are dropdowns, Seed stops at 99, and Export XML and Load XML aren't there,
+because a web page can't write to your Documents folder. It's a demo, not the plugin,
+and the page says what it doesn't reproduce.
 
 ## First contact
 

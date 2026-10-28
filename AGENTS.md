@@ -339,3 +339,66 @@ on a moving sequence, on a still and under `--quirks fusion`.
 - macOS builds must be universal. Verify with `lipo`, never the build log.
 - The four-character FFGL IDs are `CW01` and `CW02`. `CG01` was already
   cartridge's.
+
+---
+
+## The browser demo (2026-10-28)
+
+`demo/` is <https://cogwheel-demo.stoatworks-labs.com>, built to the fleet's
+`resolume-demo` kit rules (`~/Projects/resolume/specs/DEMO-BRIEF.md`), from slipstream's
+demo. Both FFGL plugins on one page; the OpenFX build is not on it. What a reader of it
+must know:
+
+- **The shaders are the plugin's**, all eight pieces of `render/Shaders.cpp`, spliced by
+  `demo/tools/check_shaders.py --write` into `demo/shaders.js` and compared character for
+  character. It also fails on a piece it does not list and on a change to the JOIN or the
+  PAIRING on either side: `vertexSource()` is kConstants + body, `fragmentSource()` adds
+  kFragmentHelpers, and `Sheet::InitGL` pairs them into four programs. **All four compile
+  and link in WebGL2 as spliced** (ANGLE on Metal, M4 Max; SwiftShader too). The sheet is
+  RGBA32F and every pass into it blends, so the page needs `EXT_float_blend` as well as
+  `EXT_color_buffer_float`, and stops with its own message without either. It does NOT
+  fall back to half-float: Sheet.h says why, and it is the same reason.
+- **The machine is a port, held to the C++ to the bit.** `demo/plugin.js`'s PORT block
+  (Gears, Wheels, Crank, Pens, the host-clock branch of Clock, Controls' Resolve and option
+  names, Presets.h, the constructor's defaults, GetParameterDisplay, SetFloatParameter and
+  applyPreset) runs under node in `demo/tools/crosscheck/`. `printer.cpp` runs
+  `scenario.txt` on the plugin's own sources, the real `CogwheelPlugin` included for the
+  display strings: 1,204,856 lines (every preset for up to 900 frames, Keep Going held and
+  let go, Unless Faded, Sync at two tempos, wheels on and off the set, a sixteen-layer
+  spectrum with skips, a 149/150 train outside the ring at Fine and full speed, a train
+  that cannot be threaded, New Sheet, and every control swept through its range for its
+  mapping and display in eight contexts). **Identical**, all 1,168,470 pen steps
+  included.
+- **Two things had to be taken out for that to be exact, and both are measured.** The
+  printer is built `-ffp-contract=off` (arm64 clang fuses `a * b + c` otherwise; the source
+  rounds twice). And V8's Math is not Apple's libm: `Exponential()`'s `powf` differs in the
+  last place or two in a handful of cases, so `libm_record.c` (interposed with
+  DYLD_INSERT_LIBRARIES) logs the plugin's own powf and logf results and run.mjs replays
+  them. Without the replay -- what the page actually computes -- 2 lines differ, a fade
+  time and a Size, each a float 1 or 2 ulp apart. cos and sin never differed.
+- **Four mutants must fail**, or the match proves nothing: creep a millionth too strong,
+  Linear() without its float rounding, one bit of splitmix32's multiplier, Creep's display
+  to three places. All four are caught.
+- **Sheet::Render's port is not in that check.** The passes, the blends, the per-run
+  draws with their attribute offsets, the Fade by Figure split and the uniforms are a hand
+  translation. `demo/tools/crosscheck/frames.mjs` checks them as a whole: `cgtest --out`
+  and the page's `renderer.offline()` hook (a fresh instance driven as cgtest drives the
+  plugin, SetTime( frame / 60 ), read back as toBytes reads it) at 640x360. On
+  2026-10-28, in twelve cases (all eight presets, Fade by Figure, Clear Paper + Cover,
+  Ink with Ink from Clip and with Paper from Clip, on cgtest's own test clip) every pixel
+  was within one level of 255, 99.8% to 99.97% identical; a negative control with Speed
+  0.737 against 0.740 fails it (834 pixels over one level, max 239). It needs Chrome and a
+  built cgtest, so verify.sh does not run it: run it by hand after touching Sheet.cpp,
+  Cogwheel.cpp's frame logic or the GL half of plugin.js.
+- **What the page does differently, on purpose, and says so:** the integer controls are
+  dropdowns (Seed 1 to 99 of 9,999); the colour triples are three sliders, as Arena shows
+  them; New Sheet is a toggle the page lets go of after a frame; Export XML, Load XML and
+  the About block are not on the panel; `hostIsRestatingItself` is not ported (no host
+  echoes values here); Sync runs at 120 BPM (the SDK's default; a browser has no tempo).
+  The clock's unit vote is not ported but its [1/240, 1/24] s clamp is, so a redraw while
+  paused adds 1/240 s of line and the kit's Restart (a clock jump backwards) does not
+  restart the drawing -- New Sheet does. Switching plugin is a new instance and a clean
+  sheet, keeping the controls' values.
+- **Verify by looking**: serve `demo/` and load it headlessly (stoatworks-backend's
+  `release/cdpshot.py`, or frames.mjs's own pipe driver); `window.cogwheelDemo` exposes the page's pieces read-only, and the line under the
+  picture prints the plugin's own Ring and Wheel displays from the port.
