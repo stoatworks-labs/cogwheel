@@ -27,6 +27,8 @@ does falls out of it.
 
 **Seen in the wild:** [VJPandaAU's set, cranking the pen hole live in Resolume](https://www.youtube.com/watch?v=LDlGKthrdzc), shared with permission.
 
+The [project page](https://stoatworks-labs.com/software/cogwheel/) has the downloads, the [user guide](https://stoatworks-labs.com/software/cogwheel/guide/) and the video.
+
 ![The toothed ring, the wheel in mesh with it, and two pens' paths in red and blue on paper](docs/hero.png)
 
 <sub>The toothed ring, the wheel in mesh with it, and two pens' paths in red and blue on paper. Rendered by the plugin's own offline harness (`cgtest`) rather than captured from Resolume.</sub>
